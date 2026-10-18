@@ -193,6 +193,8 @@ export interface FundCampaign {
   status: 'active' | 'completed';
 }
 
+export type UserRole = 'gvcn' | 'to_1' | 'to_2' | 'to_3' | 'to_4';
+
 export interface FundContribution {
   id: string;
   classId: string;
@@ -200,10 +202,11 @@ export interface FundContribution {
   studentId: string;
   studentName: string;
   team: number;
-  amountPaid: number; // Số tiền đã nộp (VNĐ)
+  amountPaid: number; // Số tiền đã nộp (VNĐ), có thể nhập tay tự do kể cả vượt mức
   paidDate: string; // Ngày nộp
   status: 'paid' | 'partial' | 'unpaid';
   paymentMethod: 'Tiền mặt' | 'Chuyển khoản';
+  transferReference?: string; // Mã tham chiếu / Ngân hàng chuyển khoản
   collector?: string; // Người thu (Thủ quỹ / GVCN)
   note?: string;
 }

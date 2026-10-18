@@ -29,7 +29,8 @@ import {
   FundCampaign,
   FundContribution,
   FundTransaction,
-  AppSettings
+  AppSettings,
+  UserRole
 } from './types';
 import { 
   loadStore, 
@@ -41,6 +42,7 @@ import { sound } from './utils/audio';
 
 import { Header } from './components/Header';
 import { Sidebar, NavItemKey } from './components/Sidebar';
+import { LoginModal } from './components/LoginModal';
 import { Dashboard } from './components/Dashboard';
 import { ClassManager } from './components/ClassManager';
 import { StudentManager } from './components/StudentManager';
@@ -63,6 +65,45 @@ export default function App() {
 
   // Current view
   const [currentView, setCurrentView] = useState<NavItemKey>('dashboard');
+
+  // User Role Authentication (GVCN vs Team Leaders to_1..to_4)
+  const [currentUserRole, setCurrentUserRole] = useState<UserRole>(() => {
+    try {
+      const saved = localStorage.getItem('classpro_user_role');
+      if (saved && ['gvcn', 'to_1', 'to_2', 'to_3', 'to_4'].includes(saved)) {
+        return saved as UserRole;
+      }
+    } catch (e) {}
+    return 'gvcn';
+  });
+
+  const [showLoginModal, setShowLoginModal] = useState(false);
+
+  // Sync role to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('classpro_user_role', currentUserRole);
+    } catch (e) {}
+  }, [currentUserRole]);
+
+  // View guard: If team leader is logged in, ONLY allow 'emulation' view!
+  useEffect(() => {
+    if (currentUserRole !== 'gvcn' && currentView !== 'emulation') {
+      setCurrentView('emulation');
+    }
+  }, [currentUserRole, currentView]);
+
+  const handleSelectRole = (role: UserRole) => {
+    setCurrentUserRole(role);
+    if (role !== 'gvcn') {
+      setCurrentView('emulation');
+    }
+  };
+
+  const handleLogoutToGVCN = () => {
+    setCurrentUserRole('gvcn');
+    sound.playClick();
+  };
 
   // Sidebar collapse & mobile drawer
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -634,6 +675,7 @@ export default function App() {
       <Header
         currentClass={currentClass}
         allClasses={store.classes}
+        students={store.students}
         studentCount={currentClassStudents.length}
         onSelectClass={handleSelectClass}
         onOpenClassManager={() => setCurrentView('classes')}
@@ -641,6 +683,9 @@ export default function App() {
         soundEnabled={store.settings.soundEnabled}
         onToggleSound={() => updateSettings({ soundEnabled: !store.settings.soundEnabled })}
         onUpdateTeacherName={(teacherName) => handleUpdateClass(currentClass.id, { teacherName })}
+        currentUserRole={currentUserRole}
+        onOpenLogin={() => setShowLoginModal(true)}
+        onLogoutToGVCN={handleLogoutToGVCN}
       />
 
       {/* Main Layout Container */}
@@ -653,6 +698,8 @@ export default function App() {
           onToggleCollapsed={() => setSidebarCollapsed(!sidebarCollapsed)}
           mobileOpen={mobileMenuOpen}
           onCloseMobile={() => setMobileMenuOpen(false)}
+          currentUserRole={currentUserRole}
+          onLogoutToGVCN={handleLogoutToGVCN}
         />
 
         {/* Content Area */}
@@ -774,6 +821,7 @@ export default function App() {
               onDeleteLog={handleDeleteEmulationLog}
               onAddCriterion={handleAddCriterion}
               onDeleteCriterion={handleDeleteCriterion}
+              currentUserRole={currentUserRole}
             />
           )}
 
@@ -933,6 +981,16 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* Login & Role Switcher Modal */}
+      <LoginModal
+        isOpen={showLoginModal}
+        onClose={() => setShowLoginModal(false)}
+        currentUserRole={currentUserRole}
+        onSelectRole={handleSelectRole}
+        students={store.students}
+        currentClass={currentClass}
+      />
     </div>
   );
 }

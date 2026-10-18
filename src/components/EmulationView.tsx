@@ -54,6 +54,7 @@ interface EmulationViewProps {
   onDeleteLog: (logId: string) => void;
   onAddCriterion: (crit: Omit<EmulationCriterion, 'id'>) => void;
   onDeleteCriterion: (critId: string) => void;
+  currentUserRole?: UserRole;
 }
 
 export type EvaluatorRoleId = 'gvcn' | 'to_1' | 'to_2' | 'to_3' | 'to_4';
@@ -68,7 +69,8 @@ export const EmulationView: React.FC<EmulationViewProps> = ({
   onAddLog,
   onDeleteLog,
   onAddCriterion,
-  onDeleteCriterion
+  onDeleteCriterion,
+  currentUserRole
 }) => {
   const classStudents = useMemo(() => students.filter(s => s.classId === currentClass.id), [students, currentClass.id]);
   const classLogs = useMemo(() => logs.filter(l => l.classId === currentClass.id), [logs, currentClass.id]);
@@ -85,7 +87,16 @@ export const EmulationView: React.FC<EmulationViewProps> = ({
   }, [classStudents]);
 
   // Current Evaluator Account
-  const [evaluatorRole, setEvaluatorRole] = useState<EvaluatorRoleId>('gvcn');
+  const [evaluatorRole, setEvaluatorRole] = useState<EvaluatorRoleId>(() => {
+    return currentUserRole || 'gvcn';
+  });
+
+  // Keep evaluatorRole in sync if currentUserRole prop changes
+  useEffect(() => {
+    if (currentUserRole) {
+      setEvaluatorRole(currentUserRole);
+    }
+  }, [currentUserRole]);
 
   // Active Tab: Default to cross_eval for team leaders, or record
   const [activeTab, setActiveTab] = useState<'cross_eval' | 'record' | 'quick_tap' | 'rankings' | 'rewards' | 'history' | 'criteria'>('cross_eval');
@@ -768,48 +779,55 @@ export const EmulationView: React.FC<EmulationViewProps> = ({
           </div>
 
           {/* Role selector dropdown & buttons */}
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-xs text-teal-200 hidden sm:inline">Chuyển tài khoản:</span>
-            <button
-              type="button"
-              onClick={() => {
-                setEvaluatorRole('gvcn');
-                sound.playClick();
-              }}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                evaluatorRole === 'gvcn'
-                  ? 'bg-amber-400 text-slate-900 shadow-md ring-2 ring-white/20'
-                  : 'bg-teal-800/80 text-teal-100 hover:bg-teal-700'
-              }`}
-            >
-              GVCN
-            </button>
+          {currentUserRole && currentUserRole !== 'gvcn' ? (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-800/80 border border-teal-600/50 text-xs font-bold text-amber-300">
+              <Lock className="w-3.5 h-3.5 text-amber-300" />
+              <span>Quyền cố định: Tổ trưởng {evaluatorTeamNumber}</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-xs text-teal-200 hidden sm:inline">Chuyển tài khoản:</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setEvaluatorRole('gvcn');
+                  sound.playClick();
+                }}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                  evaluatorRole === 'gvcn'
+                    ? 'bg-amber-400 text-slate-900 shadow-md ring-2 ring-white/20'
+                    : 'bg-teal-800/80 text-teal-100 hover:bg-teal-700'
+                }`}
+              >
+                GVCN
+              </button>
 
-            {[1, 2, 3, 4].map(tNum => {
-              const roleKey = `to_${tNum}` as EvaluatorRoleId;
-              const leader = teamLeaders[tNum];
-              const isCurrent = evaluatorRole === roleKey;
-              return (
-                <button
-                  key={tNum}
-                  type="button"
-                  onClick={() => {
-                    setEvaluatorRole(roleKey);
-                    setActiveTab('cross_eval');
-                    sound.playClick();
-                  }}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                    isCurrent
-                      ? 'bg-amber-400 text-slate-900 shadow-md ring-2 ring-white/20'
-                      : 'bg-teal-800/80 text-teal-100 hover:bg-teal-700'
-                  }`}
-                  title={leader ? `Tổ trưởng: ${leader.fullName}` : `Tổ trưởng Tổ ${tNum}`}
-                >
-                  Tổ trưởng {tNum} {leader ? `(${leader.fullName.split(' ').pop()})` : ''}
-                </button>
-              );
-            })}
-          </div>
+              {[1, 2, 3, 4].map(tNum => {
+                const roleKey = `to_${tNum}` as EvaluatorRoleId;
+                const leader = teamLeaders[tNum];
+                const isCurrent = evaluatorRole === roleKey;
+                return (
+                  <button
+                    key={tNum}
+                    type="button"
+                    onClick={() => {
+                      setEvaluatorRole(roleKey);
+                      setActiveTab('cross_eval');
+                      sound.playClick();
+                    }}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                      isCurrent
+                        ? 'bg-amber-400 text-slate-900 shadow-md ring-2 ring-white/20'
+                        : 'bg-teal-800/80 text-teal-100 hover:bg-teal-700'
+                    }`}
+                    title={leader ? `Tổ trưởng: ${leader.fullName}` : `Tổ trưởng Tổ ${tNum}`}
+                  >
+                    Tổ trưởng {tNum} {leader ? `(${leader.fullName.split(' ').pop()})` : ''}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
 

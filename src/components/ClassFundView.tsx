@@ -134,8 +134,10 @@ export const ClassFundView: React.FC<ClassFundViewProps> = ({
   const [editingContrib, setEditingContrib] = useState<FundContribution | null>(null);
   const [contribPaidAmount, setContribPaidAmount] = useState<number>(0);
   const [contribMethod, setContribMethod] = useState<'Tiền mặt' | 'Chuyển khoản'>('Tiền mặt');
+  const [contribTransferRef, setContribTransferRef] = useState<string>('');
   const [contribDate, setContribDate] = useState(new Date().toISOString().slice(0, 10));
   const [contribNote, setContribNote] = useState('');
+  const [contribFilterMethod, setContribFilterMethod] = useState<string>('all');
 
   // Financial calculations
   const totalIncome = useMemo(() => {
@@ -182,15 +184,53 @@ export const ClassFundView: React.FC<ClassFundViewProps> = ({
     return list;
   }, [classStudents, classContributions, activeCampaign, currentClass.id]);
 
-  // Campaign progress metrics
+  // Campaign progress metrics (supporting surplus and cash/transfer split)
   const campaignMetrics = useMemo(() => {
-    if (!activeCampaign) return { totalExpected: 0, totalCollected: 0, paidCount: 0, rate: 0 };
-    const totalExpected = classStudents.length * activeCampaign.targetAmountPerStudent;
+    if (!activeCampaign) return { 
+      totalExpected: 0, 
+      totalCollected: 0, 
+      paidCount: 0, 
+      rate: 0, 
+      cashTotal: 0, 
+      transferTotal: 0, 
+      surplusCount: 0, 
+      surplusTotal: 0 
+    };
+
+    const target = activeCampaign.targetAmountPerStudent;
+    const totalExpected = classStudents.length * target;
     const totalCollected = currentCampaignContributions.reduce((sum, c) => sum + (c.amountPaid || 0), 0);
     const paidCount = currentCampaignContributions.filter(c => c.status === 'paid').length;
     const rate = totalExpected > 0 ? Math.round((totalCollected / totalExpected) * 100) : 0;
 
-    return { totalExpected, totalCollected, paidCount, rate };
+    let cashTotal = 0;
+    let transferTotal = 0;
+    let surplusCount = 0;
+    let surplusTotal = 0;
+
+    currentCampaignContributions.forEach(c => {
+      const amt = c.amountPaid || 0;
+      if (c.paymentMethod === 'Chuyển khoản') {
+        transferTotal += amt;
+      } else {
+        cashTotal += amt;
+      }
+      if (amt > target) {
+        surplusCount++;
+        surplusTotal += (amt - target);
+      }
+    });
+
+    return { 
+      totalExpected, 
+      totalCollected, 
+      paidCount, 
+      rate, 
+      cashTotal, 
+      transferTotal, 
+      surplusCount, 
+      surplusTotal 
+    };
   }, [activeCampaign, classStudents.length, currentCampaignContributions]);
 
   // Filtered contributions list
@@ -199,9 +239,10 @@ export const ClassFundView: React.FC<ClassFundViewProps> = ({
       const matchSearch = c.studentName.toLowerCase().includes(contribSearch.toLowerCase());
       const matchTeam = contribFilterTeam === 'all' || c.team === Number(contribFilterTeam);
       const matchStatus = contribFilterStatus === 'all' || c.status === contribFilterStatus;
-      return matchSearch && matchTeam && matchStatus;
+      const matchMethod = contribFilterMethod === 'all' || c.paymentMethod === contribFilterMethod;
+      return matchSearch && matchTeam && matchStatus && matchMethod;
     });
-  }, [currentCampaignContributions, contribSearch, contribFilterTeam, contribFilterStatus]);
+  }, [currentCampaignContributions, contribSearch, contribFilterTeam, contribFilterStatus, contribFilterMethod]);
 
   // Category expense breakdown
   const expenseByCategory = useMemo(() => {
@@ -306,6 +347,7 @@ export const ClassFundView: React.FC<ClassFundViewProps> = ({
       paidDate: contribDate,
       status,
       paymentMethod: contribMethod,
+      transferReference: contribMethod === 'Chuyển khoản' ? contribTransferRef.trim() : undefined,
       note: contribNote.trim()
     });
 
@@ -313,10 +355,32 @@ export const ClassFundView: React.FC<ClassFundViewProps> = ({
     setEditingContrib(null);
   };
 
+  const handleInlineAmountChange = (item: FundContribution, rawValue: string) => {
+    if (!activeCampaign) return;
+    const target = activeCampaign.targetAmountPerStudent;
+    const parsed = parseInt(rawValue.replace(/\D/g, ''), 10) || 0;
+    const status = parsed >= target ? 'paid' : parsed > 0 ? 'partial' : 'unpaid';
+
+    onUpdateContribution(item.id, {
+      amountPaid: parsed,
+      paidDate: parsed > 0 ? (item.paidDate || new Date().toISOString().slice(0, 10)) : '',
+      status
+    });
+  };
+
+  const handleInlineMethodToggle = (item: FundContribution) => {
+    const nextMethod = item.paymentMethod === 'Chuyển khoản' ? 'Tiền mặt' : 'Chuyển khoản';
+    onUpdateContribution(item.id, {
+      paymentMethod: nextMethod
+    });
+    sound.playClick();
+  };
+
   const openEditContributionModal = (c: FundContribution) => {
     setEditingContrib(c);
     setContribPaidAmount(c.amountPaid || (activeCampaign?.targetAmountPerStudent || 0));
     setContribMethod(c.paymentMethod || 'Tiền mặt');
+    setContribTransferRef(c.transferReference || '');
     setContribDate(c.paidDate || new Date().toISOString().slice(0, 10));
     setContribNote(c.note || '');
     sound.playClick();
