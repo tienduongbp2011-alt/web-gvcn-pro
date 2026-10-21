@@ -257,11 +257,14 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 type="button"
                 onClick={onOpenLogin}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 rounded-xl text-xs font-bold transition-all shadow-xs"
-                title="Cấp quyền hoặc đăng nhập tài khoản Tổ trưởng"
+                className="flex items-center gap-1.5 px-3.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-950 border border-amber-300 rounded-xl text-xs font-extrabold transition-all shadow-2xs group"
+                title="Đăng nhập mật khẩu cho Tổ trưởng vào thẳng mục thi đua lớp để chấm điểm chéo"
               >
-                <KeyRound className="w-3.5 h-3.5 text-teal-600" />
-                <span className="hidden sm:inline">Tài khoản Tổ trưởng</span>
+                <ShieldCheck className="w-4 h-4 text-amber-600 group-hover:scale-110 transition-transform" />
+                <span>Đăng nhập Tổ trưởng</span>
+                <span className="hidden sm:inline px-1.5 py-0.2 bg-amber-200 text-amber-900 rounded text-[10px] font-bold">
+                  Chấm chéo
+                </span>
               </button>
             </div>
           )}

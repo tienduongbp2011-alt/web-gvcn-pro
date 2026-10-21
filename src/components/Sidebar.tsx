@@ -200,7 +200,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           ) : (
             !collapsed && (
               <div className="text-[11px] text-slate-500 text-center leading-relaxed">
-                Phiên bản 1.0.0 · Trợ lý THCS
+                Phiên bản 1.0.0 · Trợ lý THPT
               </div>
             )
           )}

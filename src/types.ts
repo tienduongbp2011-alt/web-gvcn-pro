@@ -111,6 +111,28 @@ export interface StudyGroupPlan {
   }[];
 }
 
+export const THPT_SUBJECTS = [
+  'Toán',
+  'Ngữ văn',
+  'Tiếng Anh',
+  'Vật lí',
+  'Hóa học',
+  'Sinh học',
+  'Lịch sử',
+  'Địa lí',
+  'Giáo dục kinh tế và pháp luật (GDKT&PL)',
+  'Tin học',
+  'Công nghệ',
+  'Giáo dục quốc phòng và an ninh (GDQP-AN)',
+  'Giáo dục thể chất (GDTC)',
+  'Hoạt động trải nghiệm, hướng nghiệp',
+  'Âm nhạc',
+  'Mỹ thuật',
+  'Giáo dục địa phương'
+] as const;
+
+export type THPTSubject = typeof THPT_SUBJECTS[number];
+
 export interface GradeEntry {
   id: string;
   classId: string;

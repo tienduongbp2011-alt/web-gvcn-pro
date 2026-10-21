@@ -169,6 +169,31 @@ class SoundEngine {
       // ignore
     }
   }
+
+  // Error buzzer / wrong PIN
+  public playError() {
+    if (!this.isEnabled) return;
+    try {
+      const ctx = this.initCtx();
+      if (!ctx) return;
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(180, now);
+      osc.frequency.setValueAtTime(130, now + 0.1);
+
+      gain.gain.setValueAtTime(0.12, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.25);
+    } catch {
+      // ignore
+    }
+  }
 }
 
 export const sound = new SoundEngine();

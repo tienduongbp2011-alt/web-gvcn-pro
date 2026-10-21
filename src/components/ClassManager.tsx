@@ -38,7 +38,7 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
 
   // Form states
   const [name, setName] = useState('');
-  const [grade, setGrade] = useState('Khối 9');
+  const [grade, setGrade] = useState('Khối 10');
   const [schoolYear, setSchoolYear] = useState('2024 - 2025');
   const [teacherName, setTeacherName] = useState('');
   const [roomNumber, setRoomNumber] = useState('');
@@ -48,7 +48,7 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
 
   const startCreate = () => {
     setName('');
-    setGrade('Khối 9');
+    setGrade('Khối 10');
     setSchoolYear('2024 - 2025');
     setTeacherName('');
     setRoomNumber('');
@@ -177,10 +177,9 @@ export const ClassManager: React.FC<ClassManagerProps> = ({
                 onChange={(e) => setGrade(e.target.value)}
                 className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm focus:border-teal-500 outline-hidden"
               >
-                <option value="Khối 6">Khối 6</option>
-                <option value="Khối 7">Khối 7</option>
-                <option value="Khối 8">Khối 8</option>
-                <option value="Khối 9">Khối 9</option>
+                <option value="Khối 10">Khối 10</option>
+                <option value="Khối 11">Khối 11</option>
+                <option value="Khối 12">Khối 12</option>
               </select>
             </div>
 

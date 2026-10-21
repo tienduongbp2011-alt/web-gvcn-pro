@@ -13,7 +13,10 @@ import {
   Sparkles,
   ArrowRight,
   TrendingUp,
-  AlertCircle
+  AlertCircle,
+  ShieldCheck,
+  KeyRound,
+  Lock
 } from 'lucide-react';
 import { 
   ClassInfo, 
@@ -36,6 +39,7 @@ interface DashboardProps {
   onNavigate: (view: NavItemKey) => void;
   onOpenQuickAddStudent: () => void;
   onClearSampleDataAndStartFresh: () => void;
+  onOpenLogin?: () => void;
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({
@@ -47,7 +51,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
   remarks,
   onNavigate,
   onOpenQuickAddStudent,
-  onClearSampleDataAndStartFresh
+  onClearSampleDataAndStartFresh,
+  onOpenLogin
 }) => {
   const classStudents = students.filter(s => s.classId === currentClass.id);
   const totalStudents = classStudents.length;
@@ -127,7 +132,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="text-xs font-semibold uppercase tracking-wider bg-white/20 px-2.5 py-0.5 rounded-md text-white/95">
-              Hệ thống quản lý lớp học THCS
+              Hệ thống quản lý lớp học THPT
             </span>
           </div>
           <h2 className="text-2xl font-bold tracking-tight">
@@ -188,6 +193,40 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <span>Chia nhóm</span>
           </button>
         </div>
+      </div>
+
+      {/* Team Leader Cross-Evaluation Entry Banner */}
+      <div className="bg-gradient-to-r from-amber-500/10 via-amber-50 to-yellow-500/10 border-2 border-amber-300 rounded-2xl p-4 sm:p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-start gap-3.5">
+          <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-amber-500 to-yellow-400 text-slate-950 flex items-center justify-center font-black shadow-xs shrink-0">
+            <ShieldCheck className="w-6 h-6" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h4 className="text-sm font-extrabold text-amber-950">
+                Cổng Đăng Nhập Dành Cho Tổ Trưởng (Chấm Thi Đua Chéo)
+              </h4>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-200 text-amber-900 uppercase">
+                Bảo mật PIN
+              </span>
+            </div>
+            <p className="text-xs text-amber-800 mt-1 max-w-xl leading-relaxed">
+              Tổ trưởng chỉ cần chọn Tổ của mình và nhập mật khẩu để <strong>vào thẳng giao diện chấm điểm chéo các tổ</strong>. Hệ thống tự động khóa các phân hệ quản lý khác để bảo mật dữ liệu lớp.
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => {
+            if (onOpenLogin) onOpenLogin();
+            sound.playClick();
+          }}
+          className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black rounded-xl text-xs shadow-xs transition-all flex items-center justify-center gap-1.5 shrink-0 self-start sm:self-center"
+        >
+          <KeyRound className="w-4 h-4" />
+          <span>Đăng nhập Tổ trưởng ➔</span>
+        </button>
       </div>
 
       {/* 8 Primary Statistics Cards */}

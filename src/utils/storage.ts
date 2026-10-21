@@ -15,7 +15,7 @@ import {
 
 const STORAGE_KEY = 'class_pro_master_store_v1';
 
-export const SAMPLE_CLASS_ID = 'cls_9_1_sample';
+export const SAMPLE_CLASS_ID = 'cls_10_a1_sample';
 
 export const INITIAL_SAMPLE_STUDENTS: Student[] = [
   {
@@ -324,11 +324,11 @@ export function generateSampleStore(): FullClassDataStore {
 
   const sampleClass: ClassInfo = {
     id: SAMPLE_CLASS_ID,
-    name: 'Lớp 9/1',
-    grade: 'Khối 9',
+    name: 'Lớp 10A1',
+    grade: 'Khối 10',
     schoolYear: '2024 - 2025',
     teacherName: 'Cô Nguyễn Thị Mai Hoa',
-    roomNumber: 'Phòng học 204 (Dãy nhà A)',
+    roomNumber: 'Phòng học 302 (Dãy nhà B)',
     isSampleData: true
   };
 
@@ -502,11 +502,11 @@ export function generateSampleStore(): FullClassDataStore {
         { period: 2, subject: 'Toán', teacher: 'Thầy Hưng' },
         { period: 3, subject: 'Toán', teacher: 'Thầy Hưng' },
         { period: 4, subject: 'Ngữ văn', teacher: 'Cô Mai Hoa' },
-        { period: 5, subject: 'Lịch sử & ĐL', teacher: 'Thầy Tuấn' }
+        { period: 5, subject: 'Lịch sử', teacher: 'Thầy Tuấn' }
       ],
       3: [
-        { period: 1, subject: 'KHTN (Hóa)', teacher: 'Cô Lan' },
-        { period: 2, subject: 'KHTN (Sinh)', teacher: 'Cô Bình' },
+        { period: 1, subject: 'Vật lí', teacher: 'Thầy Phúc' },
+        { period: 2, subject: 'Hóa học', teacher: 'Cô Lan' },
         { period: 3, subject: 'Tiếng Anh', teacher: 'Cô Emily' },
         { period: 4, subject: 'Tin học', teacher: 'Thầy Minh' },
         { period: 5, subject: 'GDTC', teacher: 'Thầy Dũng' }
@@ -515,29 +515,29 @@ export function generateSampleStore(): FullClassDataStore {
         { period: 1, subject: 'Ngữ văn', teacher: 'Cô Mai Hoa' },
         { period: 2, subject: 'Ngữ văn', teacher: 'Cô Mai Hoa' },
         { period: 3, subject: 'Toán', teacher: 'Thầy Hưng' },
-        { period: 4, subject: 'KHTN (Lý)', teacher: 'Thầy Phúc' },
-        { period: 5, subject: 'GDCD', teacher: 'Cô Nga' }
+        { period: 4, subject: 'Sinh học', teacher: 'Cô Bình' },
+        { period: 5, subject: 'GDKT&PL', teacher: 'Cô Nga' }
       ],
       5: [
         { period: 1, subject: 'Tiếng Anh', teacher: 'Cô Emily' },
         { period: 2, subject: 'Tiếng Anh', teacher: 'Cô Emily' },
         { period: 3, subject: 'Công nghệ', teacher: 'Thầy Trực' },
-        { period: 4, subject: 'Nghệ thuật (Âm nhạc)', teacher: 'Cô Oanh' },
-        { period: 5, subject: 'Lịch sử & ĐL', teacher: 'Thầy Tuấn' }
+        { period: 4, subject: 'Địa lí', teacher: 'Thầy Tuấn' },
+        { period: 5, subject: 'GDQP-AN', teacher: 'Thầy Hoàng' }
       ],
       6: [
         { period: 1, subject: 'Toán', teacher: 'Thầy Hưng' },
-        { period: 2, subject: 'KHTN (Lý)', teacher: 'Thầy Phúc' },
+        { period: 2, subject: 'Vật lí', teacher: 'Thầy Phúc' },
         { period: 3, subject: 'Ngữ văn', teacher: 'Cô Mai Hoa' },
-        { period: 4, subject: 'Nghệ thuật (Mỹ thuật)', teacher: 'Thầy Hùng' },
+        { period: 4, subject: 'Nghệ thuật', teacher: 'Cô Oanh' },
         { period: 5, subject: 'HĐTN, HN', teacher: 'Cô Mai Hoa' }
       ],
       7: [
-        { period: 1, subject: 'Ôn tập Toán', teacher: 'Thầy Hưng' },
-        { period: 2, subject: 'Ôn tập Văn', teacher: 'Cô Mai Hoa' },
+        { period: 1, subject: 'Hóa học', teacher: 'Cô Lan' },
+        { period: 2, subject: 'Lịch sử', teacher: 'Thầy Tuấn' },
         { period: 3, subject: 'GDTC', teacher: 'Thầy Dũng' },
         { period: 4, subject: 'Sinh hoạt lớp', teacher: 'Cô Mai Hoa' },
-        { period: 5, subject: 'Hoạt động Đoàn Đội', teacher: 'Tổng phụ trách' }
+        { period: 5, subject: 'Hoạt động Đoàn trường', teacher: 'Đoàn trường' }
       ]
     },
     afternoon: {
@@ -560,9 +560,11 @@ export function generateSampleStore(): FullClassDataStore {
   const sampleGrades: GradeEntry[] = [
     { id: 'gr_01', classId: SAMPLE_CLASS_ID, studentId: 'std_01', subject: 'Toán', gradeType: 'ĐGTX 1', score: 9.0, date: today },
     { id: 'gr_02', classId: SAMPLE_CLASS_ID, studentId: 'std_02', subject: 'Toán', gradeType: 'ĐGTX 1', score: 10.0, date: today },
-    { id: 'gr_03', classId: SAMPLE_CLASS_ID, studentId: 'std_03', subject: 'Toán', gradeType: 'ĐGTX 1', score: 8.5, date: today },
+    { id: 'gr_03', classId: SAMPLE_CLASS_ID, studentId: 'std_03', subject: 'Vật lí', gradeType: 'ĐGTX 1', score: 8.5, date: today },
     { id: 'gr_04', classId: SAMPLE_CLASS_ID, studentId: 'std_01', subject: 'Ngữ văn', gradeType: 'ĐGTX 1', score: 8.5, date: today },
-    { id: 'gr_05', classId: SAMPLE_CLASS_ID, studentId: 'std_02', subject: 'Ngữ văn', gradeType: 'ĐGTX 1', score: 9.5, date: today },
+    { id: 'gr_05', classId: SAMPLE_CLASS_ID, studentId: 'std_02', subject: 'Tiếng Anh', gradeType: 'ĐGTX 1', score: 9.5, date: today },
+    { id: 'gr_06', classId: SAMPLE_CLASS_ID, studentId: 'std_03', subject: 'Hóa học', gradeType: 'ĐGTX 1', score: 9.0, date: today },
+    { id: 'gr_07', classId: SAMPLE_CLASS_ID, studentId: 'std_04', subject: 'Giáo dục kinh tế và pháp luật (GDKT&PL)', gradeType: 'ĐGTX 1', score: 8.5, date: today },
   ];
 
   // Sample Fund Data
@@ -783,6 +785,17 @@ export function loadStore(): FullClassDataStore {
     if (!parsed.fundCampaigns) parsed.fundCampaigns = [];
     if (!parsed.fundContributions) parsed.fundContributions = [];
     if (!parsed.fundTransactions) parsed.fundTransactions = [];
+
+    // Seamless migration: upgrade sample class from THCS (9/1) to THPT (10A1)
+    if (Array.isArray(parsed.classes)) {
+      parsed.classes = parsed.classes.map(c => {
+        if (c.isSampleData && (c.name === 'Lớp 9/1' || c.grade === 'Khối 9')) {
+          return { ...c, name: 'Lớp 10A1', grade: 'Khối 10' };
+        }
+        return c;
+      });
+    }
+
     return parsed;
   } catch (e) {
     console.error('Failed to load storage, initializing fresh sample data', e);
@@ -804,7 +817,7 @@ export function createBlankClass(name: string, grade: string, schoolYear: string
   return {
     id: 'cls_' + Date.now().toString(36),
     name: name.trim() || 'Lớp mới',
-    grade: grade.trim() || 'Khối 6',
+    grade: grade.trim() || 'Khối 10',
     schoolYear: schoolYear.trim() || '2024 - 2025',
     teacherName: teacherName.trim() || 'Giáo viên chủ nhiệm',
     roomNumber: '',

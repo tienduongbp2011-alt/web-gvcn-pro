@@ -10,7 +10,7 @@ import {
   Sparkles,
   X 
 } from 'lucide-react';
-import { TimetableSchedule, TimetablePeriod, ClassInfo } from '../types';
+import { TimetableSchedule, TimetablePeriod, ClassInfo, THPT_SUBJECTS } from '../types';
 import { sound } from '../utils/audio';
 
 interface TimetableProps {
@@ -269,15 +269,31 @@ export const Timetable: React.FC<TimetableProps> = ({
 
             <form onSubmit={handleSavePeriod} className="space-y-3">
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Tên môn học</label>
+                <label className="block font-semibold text-slate-700 mb-1">Tên môn học (THPT)</label>
                 <input
                   type="text"
-                  placeholder="VD: Toán, Ngữ văn, Tiếng Anh (hoặc để trống)..."
+                  placeholder="VD: Toán, Ngữ văn, Vật lí, Tiếng Anh (hoặc để trống)..."
                   value={editingPeriod.subject}
                   onChange={(e) => setEditingPeriod({ ...editingPeriod, subject: e.target.value })}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:bg-white focus:border-teal-500 outline-hidden font-semibold"
                   autoFocus
                 />
+                <div className="mt-1.5 flex flex-wrap gap-1 max-h-20 overflow-y-auto custom-scrollbar p-1 bg-slate-50 border border-slate-200 rounded-lg">
+                  {['Chào cờ', ...THPT_SUBJECTS, 'Sinh hoạt lớp'].map(sub => (
+                    <button
+                      key={sub}
+                      type="button"
+                      onClick={() => setEditingPeriod({ ...editingPeriod, subject: sub })}
+                      className={`text-[10px] px-1.5 py-0.5 rounded transition-colors ${
+                        editingPeriod.subject === sub 
+                          ? 'bg-teal-600 text-white font-bold' 
+                          : 'bg-white hover:bg-teal-50 text-slate-600 border border-slate-200'
+                      }`}
+                    >
+                      {sub}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div>

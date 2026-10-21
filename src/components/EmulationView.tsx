@@ -35,13 +35,16 @@ import {
   BookOpen,
   HelpCircle,
   Clock,
-  Layers
+  Layers,
+  LogOut,
+  KeyRound
 } from 'lucide-react';
 import { 
   Student, 
   EmulationCriterion, 
   EmulationLog, 
-  ClassInfo 
+  ClassInfo,
+  UserRole
 } from '../types';
 import { sound } from '../utils/audio';
 
@@ -55,6 +58,8 @@ interface EmulationViewProps {
   onAddCriterion: (crit: Omit<EmulationCriterion, 'id'>) => void;
   onDeleteCriterion: (critId: string) => void;
   currentUserRole?: UserRole;
+  onOpenLogin?: () => void;
+  onLogoutToGVCN?: () => void;
 }
 
 export type EvaluatorRoleId = 'gvcn' | 'to_1' | 'to_2' | 'to_3' | 'to_4';
@@ -70,7 +75,9 @@ export const EmulationView: React.FC<EmulationViewProps> = ({
   onDeleteLog,
   onAddCriterion,
   onDeleteCriterion,
-  currentUserRole
+  currentUserRole,
+  onOpenLogin,
+  onLogoutToGVCN
 }) => {
   const classStudents = useMemo(() => students.filter(s => s.classId === currentClass.id), [students, currentClass.id]);
   const classLogs = useMemo(() => logs.filter(l => l.classId === currentClass.id), [logs, currentClass.id]);
@@ -91,10 +98,13 @@ export const EmulationView: React.FC<EmulationViewProps> = ({
     return currentUserRole || 'gvcn';
   });
 
-  // Keep evaluatorRole in sync if currentUserRole prop changes
+  // Keep evaluatorRole in sync if currentUserRole prop changes & jump straight to cross_eval for team leaders
   useEffect(() => {
     if (currentUserRole) {
       setEvaluatorRole(currentUserRole);
+      if (currentUserRole !== 'gvcn') {
+        setActiveTab('cross_eval');
+      }
     }
   }, [currentUserRole]);
 
@@ -717,6 +727,32 @@ export const EmulationView: React.FC<EmulationViewProps> = ({
 
         {/* Action button: Cross-Eval Plan info & Lock toggle */}
         <div className="flex items-center gap-2 flex-wrap">
+          {currentUserRole && currentUserRole !== 'gvcn' ? (
+            onLogoutToGVCN && (
+              <button
+                type="button"
+                onClick={onLogoutToGVCN}
+                className="px-3.5 py-2 rounded-xl text-xs font-bold bg-amber-200 hover:bg-amber-300 text-amber-950 flex items-center gap-1.5 shadow-xs transition-colors"
+                title="Đăng xuất khỏi tài khoản Tổ trưởng để trở về GVCN"
+              >
+                <LogOut className="w-4 h-4" />
+                <span>Đăng xuất (Về GVCN)</span>
+              </button>
+            )
+          ) : (
+            onOpenLogin && (
+              <button
+                type="button"
+                onClick={onOpenLogin}
+                className="px-3.5 py-2 rounded-xl text-xs font-bold bg-amber-400 hover:bg-amber-500 text-slate-950 flex items-center gap-1.5 shadow-xs transition-colors"
+                title="Mở cửa sổ đăng nhập mật khẩu cho Tổ trưởng chấm chéo"
+              >
+                <KeyRound className="w-4 h-4" />
+                <span>Đăng nhập mật khẩu Tổ trưởng</span>
+              </button>
+            )
+          )}
+
           <button
             type="button"
             onClick={() => setShowPlanModal(true)}

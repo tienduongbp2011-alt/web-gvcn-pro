@@ -248,13 +248,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 Khôi phục dữ liệu mẫu minh họa
               </h4>
               <p className="text-[11px] text-slate-500 leading-relaxed mb-3">
-                Đặt lại lớp 9/1 với 15 học sinh mẫu, điểm danh, tiêu chí và thời khóa biểu minh họa ban đầu.
+                Đặt lại lớp 10A1 (THPT) với 15 học sinh mẫu, điểm danh, tiêu chí và thời khóa biểu môn THPT minh họa ban đầu.
               </p>
             </div>
             <button
               type="button"
               onClick={() => {
-                if (confirm('Khôi phục lại bộ dữ liệu mẫu lớp 9/1? Các dữ liệu hiện tại có thể bị ghi đè.')) {
+                if (confirm('Khôi phục lại bộ dữ liệu mẫu lớp 10A1 (THPT)? Các dữ liệu hiện tại có thể bị ghi đè.')) {
                   onRestoreSampleData();
                   sound.playSuccess();
                 }

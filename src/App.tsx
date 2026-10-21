@@ -422,6 +422,14 @@ export default function App() {
     setStore(prev => ({ ...prev, grades: [...prev.grades, newGrade] }));
   };
 
+  const handleBatchAddGrades = (newGrades: Omit<GradeEntry, 'id'>[]) => {
+    const prepared: GradeEntry[] = newGrades.map((g, idx) => ({
+      ...g,
+      id: 'gr_' + Date.now().toString(36) + '_' + idx + '_' + Math.random().toString(36).slice(2, 5)
+    }));
+    setStore(prev => ({ ...prev, grades: [...prev.grades, ...prepared] }));
+  };
+
   const handleDeleteGrade = (id: string) => {
     setStore(prev => ({
       ...prev,
@@ -742,6 +750,7 @@ export default function App() {
                 setShowQuickAddStudent(true);
               }}
               onClearSampleDataAndStartFresh={handleClearSampleDataAndStartFresh}
+              onOpenLogin={() => setShowLoginModal(true)}
             />
           )}
 
@@ -822,6 +831,8 @@ export default function App() {
               onAddCriterion={handleAddCriterion}
               onDeleteCriterion={handleDeleteCriterion}
               currentUserRole={currentUserRole}
+              onOpenLogin={() => setShowLoginModal(true)}
+              onLogoutToGVCN={handleLogoutToGVCN}
             />
           )}
 
@@ -831,6 +842,7 @@ export default function App() {
               students={store.students}
               grades={store.grades}
               onAddGrade={handleAddGrade}
+              onBatchAddGrades={handleBatchAddGrades}
               onDeleteGrade={handleDeleteGrade}
             />
           )}

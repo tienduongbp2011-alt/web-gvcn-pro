@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx';
-import { Student, StudentRole } from '../types';
+import { Student, StudentRole, GradeEntry, ClassInfo, THPT_SUBJECTS } from '../types';
 
 export interface ParsedStudentResult {
   students: Student[];
@@ -440,3 +440,401 @@ export function exportFundReportToExcel(
   const fileName = `Bao_cao_thu_chi_quy_lop_${className.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.xlsx`;
   XLSX.writeFile(workbook, fileName);
 }
+
+/**
+ * Normalizes subject name to standard Vietnamese High School (THPT) subject
+ */
+export function normalizeTHPTSubject(raw: any): string {
+  if (!raw) return 'Toán';
+  const str = String(raw).trim();
+  const lower = str.toLowerCase();
+
+  if (lower === 'toán' || lower === 'toan' || lower.includes('toán học')) return 'Toán';
+  if (lower === 'ngữ văn' || lower === 'van' || lower === 'văn' || lower.includes('ngữ văn')) return 'Ngữ văn';
+  if (lower.includes('tiếng anh') || lower.includes('tieng anh') || lower === 'anh' || lower === 'english') return 'Tiếng Anh';
+  if (lower.includes('vật lí') || lower.includes('vật lý') || lower === 'lí' || lower === 'lý' || lower === 'physics') return 'Vật lí';
+  if (lower.includes('hóa học') || lower.includes('hóa') || lower === 'hoa' || lower === 'chemistry') return 'Hóa học';
+  if (lower.includes('sinh học') || lower.includes('sinh') || lower === 'biology') return 'Sinh học';
+  if (lower.includes('lịch sử') || lower === 'sử' || lower === 'history') return 'Lịch sử';
+  if (lower.includes('địa lí') || lower.includes('địa lý') || lower === 'địa' || lower === 'geography') return 'Địa lí';
+  if (lower.includes('kinh tế') || lower.includes('pháp luật') || lower.includes('gdkt') || lower.includes('gktpl')) return 'Giáo dục kinh tế và pháp luật (GDKT&PL)';
+  if (lower.includes('tin học') || lower === 'tin' || lower.includes('it') || lower.includes('computer')) return 'Tin học';
+  if (lower.includes('công nghệ') || lower === 'cn') return 'Công nghệ';
+  if (lower.includes('quốc phòng') || lower.includes('an ninh') || lower.includes('gdqp')) return 'Giáo dục quốc phòng và an ninh (GDQP-AN)';
+  if (lower.includes('thể chất') || lower.includes('thể dục') || lower.includes('gdtc')) return 'Giáo dục thể chất (GDTC)';
+  if (lower.includes('trải nghiệm') || lower.includes('hướng nghiệp') || lower.includes('hdtn')) return 'Hoạt động trải nghiệm, hướng nghiệp';
+  if (lower.includes('âm nhạc') || lower === 'nhạc') return 'Âm nhạc';
+  if (lower.includes('mỹ thuật') || lower.includes('hội họa')) return 'Mỹ thuật';
+  if (lower.includes('địa phương')) return 'Giáo dục địa phương';
+
+  // Return original capitalized string if not matched
+  return str;
+}
+
+/**
+ * Normalizes grade type
+ */
+export function normalizeGradeType(raw: any): GradeEntry['gradeType'] {
+  if (!raw) return 'ĐGTX 1';
+  const str = String(raw).trim().toLowerCase();
+  if (str.includes('1') && (str.includes('tx') || str.includes('dgtx') || str.includes('đgtx') || str.includes('miệng') || str.includes('15'))) return 'ĐGTX 1';
+  if (str.includes('2') && (str.includes('tx') || str.includes('dgtx') || str.includes('đgtx'))) return 'ĐGTX 2';
+  if (str.includes('3') && (str.includes('tx') || str.includes('dgtx') || str.includes('đgtx'))) return 'ĐGTX 3';
+  if (str.includes('4') && (str.includes('tx') || str.includes('dgtx') || str.includes('đgtx'))) return 'ĐGTX 4';
+  if (str.includes('giữa') || str.includes('giua') || str.includes('gk') || str.includes('đgđk 1') || str.includes('1 tiết')) return 'Giữa kỳ';
+  if (str.includes('cuối') || str.includes('cuoi') || str.includes('ck') || str.includes('học kỳ') || str.includes('thi')) return 'Cuối kỳ';
+  return 'ĐGTX 1';
+}
+
+export interface ParsedGradesResult {
+  grades: Omit<GradeEntry, 'id'>[];
+  errors: string[];
+  warnings: string[];
+  totalRows: number;
+  matchedStudentsCount: number;
+}
+
+/**
+ * Parse Excel file for Grades (supports both single-subject matrix format and general multi-subject list format)
+ */
+export async function parseGradesExcelFile(
+  file: File,
+  classId: string,
+  students: Student[],
+  defaultSubject: string = 'Toán'
+): Promise<ParsedGradesResult> {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+  const grades: Omit<GradeEntry, 'id'>[] = [];
+  const matchedStudentIds = new Set<string>();
+
+  const buffer = await file.arrayBuffer();
+  const workbook = XLSX.read(buffer, { type: 'array' });
+  const sheetName = workbook.SheetNames[0];
+  if (!sheetName) {
+    return { grades: [], errors: ['Tệp Excel rỗng hoặc không có trang tính (Sheet).'], warnings: [], totalRows: 0, matchedStudentsCount: 0 };
+  }
+
+  const worksheet = workbook.Sheets[sheetName];
+  const rawRows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+
+  if (rawRows.length < 2) {
+    return { grades: [], errors: ['Tệp Excel cần có ít nhất 1 dòng tiêu đề cột và 1 dòng dữ liệu điểm.'], warnings: [], totalRows: 0, matchedStudentsCount: 0 };
+  }
+
+  // Find header row: look for row with student identification or grade columns
+  let headerIndex = -1;
+  for (let r = 0; r < Math.min(10, rawRows.length); r++) {
+    const rowStr = rawRows[r].map(c => String(c).toLowerCase()).join(' ');
+    if (
+      rowStr.includes('họ') || 
+      rowStr.includes('tên') || 
+      rowStr.includes('mã hs') || 
+      rowStr.includes('đgtx') || 
+      rowStr.includes('giữa kỳ') ||
+      rowStr.includes('môn') ||
+      rowStr.includes('điểm')
+    ) {
+      headerIndex = r;
+      break;
+    }
+  }
+
+  if (headerIndex === -1) headerIndex = 0;
+
+  const headers = rawRows[headerIndex].map(h => String(h).trim().toLowerCase());
+
+  // Check if Matrix format (columns for ĐGTX 1..4, Giữa kỳ, Cuối kỳ)
+  const matrixCols: { colIndex: number; gradeType: GradeEntry['gradeType'] }[] = [];
+  headers.forEach((h, idx) => {
+    if (h.includes('đgtx 1') || h.includes('tx1') || h.includes('đgtx1') || h.includes('miệng')) {
+      matrixCols.push({ colIndex: idx, gradeType: 'ĐGTX 1' });
+    } else if (h.includes('đgtx 2') || h.includes('tx2') || h.includes('đgtx2')) {
+      matrixCols.push({ colIndex: idx, gradeType: 'ĐGTX 2' });
+    } else if (h.includes('đgtx 3') || h.includes('tx3') || h.includes('đgtx3')) {
+      matrixCols.push({ colIndex: idx, gradeType: 'ĐGTX 3' });
+    } else if (h.includes('đgtx 4') || h.includes('tx4') || h.includes('đgtx4')) {
+      matrixCols.push({ colIndex: idx, gradeType: 'ĐGTX 4' });
+    } else if (h.includes('giữa kỳ') || h.includes('giua ky') || h.includes('gk') || h.includes('đgđk 1') || h.includes('1 tiết')) {
+      matrixCols.push({ colIndex: idx, gradeType: 'Giữa kỳ' });
+    } else if (h.includes('cuối kỳ') || h.includes('cuoi ky') || h.includes('ck') || h.includes('thi')) {
+      matrixCols.push({ colIndex: idx, gradeType: 'Cuối kỳ' });
+    }
+  });
+
+  const colCode = headers.findIndex(h => h.includes('mã') || h.includes('code') || h.includes('id') || h.includes('sbd'));
+  const colName = headers.findIndex(h => (h.includes('họ') && h.includes('tên')) || h.includes('họ tên') || h.includes('tên học sinh') || h === 'tên' || h.includes('name'));
+  const colSubject = headers.findIndex(h => h.includes('môn') || h.includes('subject'));
+  const colScore = headers.findIndex((h, idx) => (h.includes('điểm') || h.includes('score')) && !matrixCols.some(mc => mc.colIndex === idx));
+  const colGradeType = headers.findIndex(h => h.includes('loại') || h.includes('cột') || h.includes('hình thức'));
+  const colDate = headers.findIndex(h => h.includes('ngày') || h.includes('date'));
+  const colNote = headers.findIndex(h => h.includes('ghi chú') || h.includes('note') || h.includes('nhận xét'));
+
+  const isMatrix = matrixCols.length > 0;
+  const todayStr = new Date().toISOString().slice(0, 10);
+
+  // Student matcher by code or name
+  const findStudent = (codeVal: string, nameVal: string): Student | undefined => {
+    const cClean = codeVal.trim().toUpperCase();
+    if (cClean) {
+      const foundByCode = students.find(s => s.code.trim().toUpperCase() === cClean);
+      if (foundByCode) return foundByCode;
+    }
+    const nClean = nameVal.trim().toLowerCase().replace(/\s+/g, ' ');
+    if (nClean) {
+      const foundByName = students.find(s => s.fullName.trim().toLowerCase().replace(/\s+/g, ' ') === nClean);
+      if (foundByName) return foundByName;
+    }
+    return undefined;
+  };
+
+  const parseScoreValue = (raw: any): number | null => {
+    if (raw === '' || raw === null || raw === undefined) return null;
+    const str = String(raw).trim().replace(',', '.');
+    const num = parseFloat(str);
+    if (isNaN(num)) return null;
+    if (num < 0 || num > 10) return null;
+    return Math.round(num * 10) / 10;
+  };
+
+  for (let r = headerIndex + 1; r < rawRows.length; r++) {
+    const row = rawRows[r];
+    if (!row || row.every(cell => String(cell).trim() === '')) continue;
+
+    const rawCode = colCode !== -1 ? String(row[colCode] || '').trim() : '';
+    const rawName = colName !== -1 ? String(row[colName] || '').trim() : '';
+    const student = findStudent(rawCode, rawName);
+
+    if (!student) {
+      if (rawCode || rawName) {
+        warnings.push(`Dòng ${r + 1}: Không tìm thấy học sinh với mã "${rawCode}" hoặc họ tên "${rawName}" trong danh sách lớp.`);
+      }
+      continue;
+    }
+
+    matchedStudentIds.add(student.id);
+    const rowSubject = colSubject !== -1 && row[colSubject] 
+      ? normalizeTHPTSubject(row[colSubject]) 
+      : defaultSubject;
+    const noteVal = colNote !== -1 && row[colNote] ? String(row[colNote]).trim() : '';
+    const dateVal = colDate !== -1 && row[colDate] ? String(row[colDate]).trim() : todayStr;
+
+    if (isMatrix) {
+      // Matrix format: each grade column is a separate grade
+      for (const m of matrixCols) {
+        const val = row[m.colIndex];
+        if (val === '' || val === null || val === undefined) continue;
+
+        const score = parseScoreValue(val);
+        if (score === null) {
+          warnings.push(`Dòng ${r + 1} (${student.fullName}): Điểm "${val}" ở cột ${m.gradeType} không hợp lệ (cần là số từ 0 đến 10).`);
+          continue;
+        }
+
+        grades.push({
+          classId,
+          studentId: student.id,
+          subject: rowSubject,
+          gradeType: m.gradeType,
+          score,
+          date: dateVal,
+          note: noteVal
+        });
+      }
+    } else {
+      // List format
+      const val = colScore !== -1 ? row[colScore] : '';
+      if (val === '' || val === null || val === undefined) continue;
+
+      const score = parseScoreValue(val);
+      if (score === null) {
+        warnings.push(`Dòng ${r + 1} (${student.fullName}): Điểm "${val}" không hợp lệ (cần là số từ 0 đến 10).`);
+        continue;
+      }
+
+      const gType = colGradeType !== -1 && row[colGradeType] 
+        ? normalizeGradeType(row[colGradeType]) 
+        : 'ĐGTX 1';
+
+      grades.push({
+        classId,
+        studentId: student.id,
+        subject: rowSubject,
+        gradeType: gType,
+        score,
+        date: dateVal,
+        note: noteVal
+      });
+    }
+  }
+
+  return {
+    grades,
+    errors,
+    warnings,
+    totalRows: rawRows.length - (headerIndex + 1),
+    matchedStudentsCount: matchedStudentIds.size
+  };
+}
+
+/**
+ * Downloads a pre-formatted Excel template for entering THPT grades
+ */
+export function downloadGradeTemplateExcel(
+  currentClass: ClassInfo,
+  students: Student[],
+  defaultSubject: string = 'Toán'
+): void {
+  const workbook = XLSX.utils.book_new();
+
+  // Sheet 1: Matrix format (Ma trận điểm môn học - thuận tiện nhất cho GV)
+  const matrixData: any[][] = [
+    [`BẢNG ĐIỂM MÔN ${defaultSubject.toUpperCase()} - LỚP ${currentClass.name.toUpperCase()} (BẬC THPT)`],
+    ['* Hướng dẫn: Thầy/Cô chỉ cần nhập điểm số (từ 0.0 đến 10.0) vào các cột ĐGTX 1-4, Giữa kỳ, Cuối kỳ. Ô trống sẽ được bỏ qua.'],
+    [],
+    ['STT', 'Mã HS', 'Họ và tên', 'Môn học', 'ĐGTX 1', 'ĐGTX 2', 'ĐGTX 3', 'ĐGTX 4', 'Giữa kỳ', 'Cuối kỳ', 'Ghi chú']
+  ];
+
+  if (students.length > 0) {
+    students.forEach((s, idx) => {
+      matrixData.push([
+        idx + 1,
+        s.code,
+        s.fullName,
+        defaultSubject,
+        '', // ĐGTX 1
+        '', // ĐGTX 2
+        '', // ĐGTX 3
+        '', // ĐGTX 4
+        '', // Giữa kỳ
+        '', // Cuối kỳ
+        ''  // Ghi chú
+      ]);
+    });
+  } else {
+    matrixData.push(
+      [1, 'HS01', 'Nguyễn Hoàng Minh', defaultSubject, 9.0, 8.5, '', '', 9.0, 8.5, 'Bài làm tốt'],
+      [2, 'HS02', 'Trần Lê Bảo Ngọc', defaultSubject, 10.0, 9.5, '', '', 9.5, 10.0, 'Xuất sắc']
+    );
+  }
+
+  const wsMatrix = XLSX.utils.aoa_to_sheet(matrixData);
+  wsMatrix['!cols'] = [
+    { wch: 6 },
+    { wch: 10 },
+    { wch: 24 },
+    { wch: 22 },
+    { wch: 10 },
+    { wch: 10 },
+    { wch: 10 },
+    { wch: 10 },
+    { wch: 12 },
+    { wch: 12 },
+    { wch: 25 }
+  ];
+  XLSX.utils.book_append_sheet(workbook, wsMatrix, 'Nhap_Theo_Mon');
+
+  // Sheet 2: Danh sách tổng hợp nhiều môn
+  const listData: any[][] = [
+    ['MẪU NHẬP ĐIỂM DANH SÁCH TỔNG HỢP (NHIỀU MÔN THPT)'],
+    ['* Danh sách các môn THPT: Toán, Ngữ văn, Tiếng Anh, Vật lí, Hóa học, Sinh học, Lịch sử, Địa lí, GDKT&PL, Tin học, Công nghệ, GDQP-AN, GDTC, HĐTN-HN.'],
+    [],
+    ['STT', 'Mã HS', 'Họ và tên', 'Môn học', 'Loại điểm', 'Điểm số', 'Ngày kiểm tra', 'Ghi chú'],
+    [1, 'HS01', 'Nguyễn Hoàng Minh', 'Toán', 'ĐGTX 1', 9.0, '2024-10-15', 'Kiểm tra 15 phút'],
+    [2, 'HS01', 'Nguyễn Hoàng Minh', 'Ngữ văn', 'Giữa kỳ', 8.5, '2024-10-20', 'Làm văn tốt'],
+    [3, 'HS02', 'Trần Lê Bảo Ngọc', 'Vật lí', 'ĐGTX 1', 9.5, '2024-10-15', ''],
+    [4, 'HS02', 'Trần Lê Bảo Ngọc', 'Tiếng Anh', 'Cuối kỳ', 10.0, '2024-10-25', ''],
+    [5, 'HS03', 'Lê Quốc Anh', 'Hóa học', 'ĐGTX 1', 8.0, '2024-10-15', ''],
+    [6, 'HS04', 'Phạm Thị Quỳnh Mai', 'Lịch sử', 'ĐGTX 1', 9.0, '2024-10-15', ''],
+    [7, 'HS05', 'Vũ Gia Huy', 'Giáo dục quốc phòng và an ninh (GDQP-AN)', 'ĐGTX 1', 8.5, '2024-10-15', ''],
+    [8, 'HS06', 'Đặng Thùy Dương', 'Giáo dục kinh tế và pháp luật (GDKT&PL)', 'ĐGTX 1', 9.0, '2024-10-15', '']
+  ];
+  const wsList = XLSX.utils.aoa_to_sheet(listData);
+  wsList['!cols'] = [
+    { wch: 6 },
+    { wch: 10 },
+    { wch: 24 },
+    { wch: 28 },
+    { wch: 14 },
+    { wch: 10 },
+    { wch: 14 },
+    { wch: 25 }
+  ];
+  XLSX.utils.book_append_sheet(workbook, wsList, 'Nhap_Danh_Sach');
+
+  const fileName = `Mau_nhap_diem_THPT_${currentClass.name.replace(/\s+/g, '_')}_${defaultSubject.replace(/\s+/g, '_')}.xlsx`;
+  XLSX.writeFile(workbook, fileName);
+}
+
+/**
+ * Export full Gradebook to styled Excel .xlsx file with statistics
+ */
+export function exportGradesToExcel(
+  className: string,
+  teacherName: string,
+  grades: GradeEntry[],
+  students: Student[],
+  subjectFilter: string = 'all'
+): void {
+  const workbook = XLSX.utils.book_new();
+  const subjectTitle = subjectFilter === 'all' ? 'TẤT CẢ CÁC MÔN' : subjectFilter.toUpperCase();
+
+  const scores = grades.map(g => g.score);
+  const avg = scores.length > 0 ? (scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(2) : '0';
+  const max = scores.length > 0 ? Math.max(...scores).toFixed(1) : '0';
+  const min = scores.length > 0 ? Math.min(...scores).toFixed(1) : '0';
+  const passCount = scores.filter(s => s >= 5.0).length;
+  const goodCount = scores.filter(s => s >= 8.0).length;
+
+  const data: any[][] = [
+    [`SỔ ĐIỂM CÁ NHÂN THEO DÕI HỌC SINH THPT - LỚP ${className.toUpperCase()}`],
+    [`Môn học: ${subjectTitle} · Giáo viên: ${teacherName} · Ngày xuất: ${new Date().toLocaleDateString('vi-VN')}`],
+    [],
+    ['THỐNG KÊ CHUNG', 'SỐ LƯỢNG / TỶ LỆ'],
+    ['Tổng số đầu điểm đã ghi', scores.length],
+    ['Điểm trung bình toàn lớp', Number(avg)],
+    ['Điểm cao nhất', Number(max)],
+    ['Điểm thấp nhất', Number(min)],
+    ['Tỷ lệ Đạt (≥ 5.0)', `${passCount}/${scores.length} (${scores.length ? Math.round((passCount / scores.length) * 100) : 0}%)`],
+    ['Tỷ lệ Giỏi (≥ 8.0)', `${goodCount}/${scores.length} (${scores.length ? Math.round((goodCount / scores.length) * 100) : 0}%)`],
+    [],
+    ['CHI TIẾT ĐIỂM SỐ CÁC HỌC SINH'],
+    ['STT', 'Mã HS', 'Họ và tên', 'Tổ', 'Môn học (THPT)', 'Loại điểm', 'Điểm số', 'Đánh giá', 'Ngày kiểm tra', 'Ghi chú']
+  ];
+
+  grades.forEach((g, idx) => {
+    const st = students.find(s => s.id === g.studentId);
+    const evalStr = g.score >= 8.0 ? 'Giỏi' : g.score >= 6.5 ? 'Khá' : g.score >= 5.0 ? 'Đạt' : 'Chưa đạt';
+    data.push([
+      idx + 1,
+      st?.code || '',
+      st?.fullName || 'Học sinh',
+      st ? `Tổ ${st.team}` : '',
+      g.subject,
+      g.gradeType,
+      g.score,
+      evalStr,
+      g.date,
+      g.note || ''
+    ]);
+  });
+
+  const worksheet = XLSX.utils.aoa_to_sheet(data);
+  worksheet['!cols'] = [
+    { wch: 6 },
+    { wch: 10 },
+    { wch: 24 },
+    { wch: 8 },
+    { wch: 28 },
+    { wch: 14 },
+    { wch: 10 },
+    { wch: 12 },
+    { wch: 14 },
+    { wch: 30 }
+  ];
+
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'So_Diem_THPT');
+  const fileName = `So_diem_THPT_${className.replace(/\s+/g, '_')}_${subjectFilter === 'all' ? 'TongHop' : subjectFilter.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+  XLSX.writeFile(workbook, fileName);
+}
+
