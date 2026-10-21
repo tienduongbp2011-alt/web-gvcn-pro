@@ -51,6 +51,7 @@ interface SidebarProps {
   onCloseMobile: () => void;
   currentUserRole?: UserRole;
   onLogoutToGVCN?: () => void;
+  onLogout?: () => void;
 }
 
 export const NAV_ITEMS: { key: NavItemKey; label: string; icon: React.ElementType }[] = [
@@ -79,7 +80,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   mobileOpen,
   onCloseMobile,
   currentUserRole = 'gvcn',
-  onLogoutToGVCN
+  onLogoutToGVCN,
+  onLogout
 }) => {
   const isTeamLeader = currentUserRole !== 'gvcn';
   const teamNum = isTeamLeader ? currentUserRole.replace('to_', '') : null;
@@ -184,25 +186,40 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* Footer info in sidebar / Logout button */}
-        <div className="p-3 border-t border-slate-100 bg-slate-50/60">
+        <div className="p-3 border-t border-slate-100 bg-slate-50/60 space-y-2">
           {isTeamLeader ? (
             <button
               type="button"
-              onClick={onLogoutToGVCN}
+              onClick={onLogout || onLogoutToGVCN}
               className={`w-full py-2 bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shadow-xs ${
                 collapsed ? 'px-0' : 'px-3'
               }`}
               title="Đăng xuất khỏi tài khoản Tổ trưởng"
             >
               <LogOut className="w-4 h-4" />
-              {!collapsed && <span>Đăng xuất (Về GVCN)</span>}
+              {!collapsed && <span>Đăng xuất hệ thống</span>}
             </button>
           ) : (
-            !collapsed && (
-              <div className="text-[11px] text-slate-500 text-center leading-relaxed">
-                Phiên bản 1.0.0 · Trợ lý THPT
-              </div>
-            )
+            <>
+              {onLogout && (
+                <button
+                  type="button"
+                  onClick={onLogout}
+                  className={`w-full py-2 bg-slate-100 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-300 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shadow-2xs ${
+                    collapsed ? 'px-0' : 'px-3'
+                  }`}
+                  title="Đăng xuất khỏi tài khoản Giáo viên"
+                >
+                  <LogOut className="w-4 h-4" />
+                  {!collapsed && <span>Đăng xuất hệ thống</span>}
+                </button>
+              )}
+              {!collapsed && (
+                <div className="text-[11px] text-slate-400 text-center leading-relaxed">
+                  Class Pro · Trợ lý THPT
+                </div>
+              )}
+            </>
           )}
         </div>
       </aside>

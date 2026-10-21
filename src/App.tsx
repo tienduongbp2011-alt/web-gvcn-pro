@@ -43,6 +43,7 @@ import { sound } from './utils/audio';
 import { Header } from './components/Header';
 import { Sidebar, NavItemKey } from './components/Sidebar';
 import { LoginModal } from './components/LoginModal';
+import { LoginScreen } from './components/LoginScreen';
 import { Dashboard } from './components/Dashboard';
 import { ClassManager } from './components/ClassManager';
 import { StudentManager } from './components/StudentManager';
@@ -65,6 +66,15 @@ export default function App() {
 
   // Current view
   const [currentView, setCurrentView] = useState<NavItemKey>('dashboard');
+
+  // User Authentication Gate: Both Teacher and Team Leader must enter password to enter system
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('classpro_authenticated') === 'true';
+    } catch {
+      return false;
+    }
+  });
 
   // User Role Authentication (GVCN vs Team Leaders to_1..to_4)
   const [currentUserRole, setCurrentUserRole] = useState<UserRole>(() => {
@@ -100,9 +110,24 @@ export default function App() {
     }
   };
 
-  const handleLogoutToGVCN = () => {
-    setCurrentUserRole('gvcn');
+  const handleLoginSuccess = (role: UserRole) => {
+    setIsAuthenticated(true);
+    try {
+      localStorage.setItem('classpro_authenticated', 'true');
+    } catch (e) {}
+    handleSelectRole(role);
+  };
+
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    try {
+      localStorage.removeItem('classpro_authenticated');
+    } catch (e) {}
     sound.playClick();
+  };
+
+  const handleLogoutToGVCN = () => {
+    handleLogout();
   };
 
   // Sidebar collapse & mobile drawer
@@ -688,6 +713,17 @@ export default function App() {
     afternoon: {}
   };
 
+  // Dedicated Login Screen Gate: Requires password for both Teacher and Team Leader
+  if (!isAuthenticated) {
+    return (
+      <LoginScreen
+        currentClass={currentClass}
+        students={store.students}
+        onLoginSuccess={handleLoginSuccess}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col selection:bg-teal-100 selection:text-teal-900">
       {/* Top Header */}
@@ -705,6 +741,7 @@ export default function App() {
         currentUserRole={currentUserRole}
         onOpenLogin={() => setShowLoginModal(true)}
         onLogoutToGVCN={handleLogoutToGVCN}
+        onLogout={handleLogout}
       />
 
       {/* Main Layout Container */}
@@ -719,6 +756,7 @@ export default function App() {
           onCloseMobile={() => setMobileMenuOpen(false)}
           currentUserRole={currentUserRole}
           onLogoutToGVCN={handleLogoutToGVCN}
+          onLogout={handleLogout}
         />
 
         {/* Content Area */}
@@ -924,6 +962,7 @@ export default function App() {
               onImportBackup={(importedStore) => setStore(importedStore)}
               onRestoreSampleData={handleRestoreSampleData}
               onClearAllData={handleClearAllData}
+              onLogout={handleLogout}
             />
           )}
         </main>
@@ -1011,7 +1050,7 @@ export default function App() {
         isOpen={showLoginModal}
         onClose={() => setShowLoginModal(false)}
         currentUserRole={currentUserRole}
-        onSelectRole={handleSelectRole}
+        onSelectRole={handleLoginSuccess}
         students={store.students}
         currentClass={currentClass}
       />
