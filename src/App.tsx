@@ -343,6 +343,17 @@ export default function App() {
     setStore(prev => ({ ...prev, criteria: [...prev.criteria, newCrit] }));
   };
 
+  const handleBatchAddCriteria = (newCriteria: Omit<EmulationCriterion, 'id'>[], replaceExisting: boolean = false) => {
+    const prepared: EmulationCriterion[] = newCriteria.map((c, idx) => ({
+      ...c,
+      id: 'crit_' + Date.now().toString(36) + '_' + idx + '_' + Math.random().toString(36).slice(2, 5)
+    }));
+    setStore(prev => ({
+      ...prev,
+      criteria: replaceExisting ? prepared : [...prev.criteria, ...prepared]
+    }));
+  };
+
   const handleDeleteCriterion = (critId: string) => {
     setStore(prev => ({
       ...prev,
@@ -833,6 +844,7 @@ export default function App() {
               currentUserRole={currentUserRole}
               onOpenLogin={() => setShowLoginModal(true)}
               onLogoutToGVCN={handleLogoutToGVCN}
+              onBatchAddCriteria={handleBatchAddCriteria}
             />
           )}
 

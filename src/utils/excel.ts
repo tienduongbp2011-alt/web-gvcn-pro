@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx';
-import { Student, StudentRole, GradeEntry, ClassInfo, THPT_SUBJECTS } from '../types';
+import { Student, StudentRole, GradeEntry, ClassInfo, THPT_SUBJECTS, EmulationCriterion } from '../types';
 
 export interface ParsedStudentResult {
   students: Student[];
@@ -837,4 +837,246 @@ export function exportGradesToExcel(
   const fileName = `So_diem_THPT_${className.replace(/\s+/g, '_')}_${subjectFilter === 'all' ? 'TongHop' : subjectFilter.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.xlsx`;
   XLSX.writeFile(workbook, fileName);
 }
+
+/**
+ * Normalizes emulation criterion category
+ */
+export function normalizeCriterionCategory(raw: any): EmulationCriterion['category'] {
+  if (!raw) return 'Học tập';
+  const str = String(raw).trim().toLowerCase();
+  if (str.includes('kỷ luật') || str.includes('ky luat') || str.includes('nề nếp') || str.includes('ne nep') || str.includes('đồng phục')) {
+    return 'Kỷ luật';
+  }
+  if (str.includes('chuyên cần') || str.includes('chuyen can') || str.includes('đi học') || str.includes('vắng') || str.includes('muộn')) {
+    return 'Chuyên cần';
+  }
+  if (str.includes('phong trào') || str.includes('phong trao') || str.includes('lao động') || str.includes('lao dong') || str.includes('trực nhật') || str.includes('vệ sinh') || str.includes('đoàn')) {
+    return 'Phong trào & Lao động';
+  }
+  if (str.includes('đạo đức') || str.includes('dao duc') || str.includes('hành vi') || str.includes('thái độ') || str.includes('lễ phép')) {
+    return 'Đạo đức';
+  }
+  return 'Học tập';
+}
+
+/**
+ * Normalizes emulation criterion target type
+ */
+export function normalizeCriterionTargetType(raw: any): EmulationCriterion['targetType'] {
+  if (!raw) return 'individual';
+  const str = String(raw).trim().toLowerCase();
+  if (str.includes('tổ') || str.includes('to') || str.includes('nhóm') || str.includes('team')) {
+    return 'team';
+  }
+  if (str.includes('lớp') || str.includes('lop') || str.includes('cả lớp') || str.includes('class') || str.includes('tập thể')) {
+    return 'class';
+  }
+  return 'individual';
+}
+
+export interface ParsedCriteriaResult {
+  criteria: Omit<EmulationCriterion, 'id'>[];
+  errors: string[];
+  warnings: string[];
+  totalRows: number;
+}
+
+/**
+ * Parses Excel file (.xlsx, .xls, .csv) containing emulation criteria
+ */
+export async function parseCriteriaExcelFile(file: File): Promise<ParsedCriteriaResult> {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+  const criteria: Omit<EmulationCriterion, 'id'>[] = [];
+
+  const buffer = await file.arrayBuffer();
+  const workbook = XLSX.read(buffer, { type: 'array' });
+  const sheetName = workbook.SheetNames[0];
+  if (!sheetName) {
+    return { criteria: [], errors: ['Tệp Excel rỗng hoặc không có trang tính.'], warnings: [], totalRows: 0 };
+  }
+
+  const worksheet = workbook.Sheets[sheetName];
+  const rawRows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+
+  if (rawRows.length < 2) {
+    return { criteria: [], errors: ['Tệp Excel cần có ít nhất 1 dòng tiêu đề cột và 1 dòng tiêu chí.'], warnings: [], totalRows: 0 };
+  }
+
+  // Find header row
+  let headerIndex = -1;
+  for (let r = 0; r < Math.min(8, rawRows.length); r++) {
+    const rowStr = rawRows[r].map(c => String(c).toLowerCase()).join(' ');
+    if (
+      rowStr.includes('tiêu chí') || 
+      rowStr.includes('nội dung') || 
+      rowStr.includes('tên') || 
+      rowStr.includes('điểm') || 
+      rowStr.includes('lĩnh vực')
+    ) {
+      headerIndex = r;
+      break;
+    }
+  }
+
+  if (headerIndex === -1) headerIndex = 0;
+
+  const headers = rawRows[headerIndex].map(h => String(h).trim().toLowerCase());
+
+  const colName = headers.findIndex(h => h.includes('tiêu chí') || h.includes('nội dung') || (h.includes('tên') && !h.includes('học sinh')) || h.includes('name'));
+  const colType = headers.findIndex(h => h.includes('loại') || h.includes('cộng') || h.includes('trừ') || h.includes('type') || h.includes('+/-'));
+  const colPoints = headers.findIndex(h => h.includes('điểm') || h.includes('points') || h.includes('mức điểm') || h.includes('score'));
+  const colCategory = headers.findIndex(h => h.includes('lĩnh vực') || h.includes('danh mục') || h.includes('nhóm') || h.includes('category'));
+  const colTarget = headers.findIndex(h => h.includes('đối tượng') || h.includes('áp dụng') || h.includes('target'));
+
+  if (colName === -1 && colPoints === -1) {
+    return { 
+      criteria: [], 
+      errors: ['Không nhận diện được cột "Tên tiêu chí" hoặc "Số điểm". Vui lòng kiểm tra lại dòng tiêu đề cột hoặc tải tệp mẫu.'], 
+      warnings: [], 
+      totalRows: 0 
+    };
+  }
+
+  const finalNameCol = colName !== -1 ? colName : 1;
+  const finalPointsCol = colPoints !== -1 ? colPoints : 2;
+
+  for (let r = headerIndex + 1; r < rawRows.length; r++) {
+    const row = rawRows[r];
+    if (!row || row.every(cell => String(cell).trim() === '')) continue;
+
+    const rawName = row[finalNameCol] ? String(row[finalNameCol]).trim() : '';
+    if (!rawName) continue;
+
+    const rawPointsVal = row[finalPointsCol];
+    const rawTypeVal = colType !== -1 && row[colType] ? String(row[colType]).trim() : '';
+    const rawCatVal = colCategory !== -1 && row[colCategory] ? String(row[colCategory]).trim() : '';
+    const rawTargetVal = colTarget !== -1 && row[colTarget] ? String(row[colTarget]).trim() : '';
+
+    // Determine points and type
+    let points = 5;
+    let type: 'plus' | 'minus' = 'plus';
+
+    if (rawPointsVal !== undefined && rawPointsVal !== '') {
+      const parsedNum = parseFloat(String(rawPointsVal).replace(',', '.').replace(/[^0-9.-]/g, ''));
+      if (!isNaN(parsedNum)) {
+        if (parsedNum < 0) {
+          type = 'minus';
+          points = Math.abs(parsedNum);
+        } else {
+          points = parsedNum;
+        }
+      }
+    }
+
+    // Type text override
+    const typeStr = rawTypeVal.toLowerCase();
+    if (typeStr.includes('trừ') || typeStr.includes('-') || typeStr.includes('minus') || typeStr.includes('phạt')) {
+      type = 'minus';
+    } else if (typeStr.includes('cộng') || typeStr.includes('+') || typeStr.includes('plus') || typeStr.includes('thưởng')) {
+      type = 'plus';
+    }
+
+    // Category
+    const category = normalizeCriterionCategory(rawCatVal);
+
+    // Target type
+    const targetType = normalizeCriterionTargetType(rawTargetVal);
+
+    criteria.push({
+      name: rawName,
+      type,
+      points,
+      category,
+      targetType
+    });
+  }
+
+  return {
+    criteria,
+    errors,
+    warnings,
+    totalRows: rawRows.length - (headerIndex + 1)
+  };
+}
+
+/**
+ * Downloads a pre-formatted Excel template for entering Emulation Criteria
+ */
+export function downloadCriteriaTemplateExcel(): void {
+  const data: any[][] = [
+    ['MẪU NHẬP TIÊU CHÍ THI ĐUA LỚP HỌC (CLASS PRO)'],
+    ['* Hướng dẫn: Thầy/Cô điền tên tiêu chí, loại điểm (+ hoặc -), số điểm và lĩnh vực. Cột đối tượng có thể là: Cá nhân, Tổ hoặc Cả lớp.'],
+    [],
+    ['STT', 'Tên tiêu chí thi đua', 'Loại điểm (+ / -)', 'Số điểm', 'Lĩnh vực', 'Đối tượng áp dụng'],
+    [1, 'Phát biểu xây dựng bài xuất sắc', 'Cộng điểm', 5, 'Học tập', 'Cá nhân'],
+    [2, 'Đạt điểm 9, 10 trong các bài kiểm tra', 'Cộng điểm', 10, 'Học tập', 'Cá nhân'],
+    [3, 'Không chuẩn bị bài hoặc quên sách vở', 'Trừ điểm', 5, 'Học tập', 'Cá nhân'],
+    [4, 'Đi học muộn không có lý do chính đáng', 'Trừ điểm', 5, 'Chuyên cần', 'Cá nhân'],
+    [5, 'Nghỉ học không phép', 'Trừ điểm', 10, 'Chuyên cần', 'Cá nhân'],
+    [6, 'Mặc đồng phục, tác phong đúng quy định', 'Cộng điểm', 5, 'Kỷ luật', 'Cá nhân'],
+    [7, 'Sử dụng điện thoại trong giờ học khi chưa được phép', 'Trừ điểm', 10, 'Kỷ luật', 'Cá nhân'],
+    [8, 'Trực nhật lớp sạch sẽ, đúng giờ, đổ rác đúng nơi', 'Cộng điểm', 5, 'Phong trào & Lao động', 'Tổ'],
+    [9, 'Trực nhật muộn hoặc lớp còn bẩn', 'Trừ điểm', 5, 'Phong trào & Lao động', 'Tổ'],
+    [10, 'Tích cực tham gia hoạt động Đoàn / Phong trào trường', 'Cộng điểm', 10, 'Phong trào & Lao động', 'Cá nhân'],
+    [11, 'Giúp đỡ bạn tiến bộ trong học tập', 'Cộng điểm', 5, 'Đạo đức', 'Cá nhân'],
+    [12, 'Nói tục, gây mất đoàn kết nội bộ', 'Trừ điểm', 15, 'Đạo đức', 'Cá nhân'],
+    [13, 'Tập thể Tổ xếp thứ nhất phong trào tuần', 'Cộng điểm', 20, 'Phong trào & Lao động', 'Tổ']
+  ];
+
+  const worksheet = XLSX.utils.aoa_to_sheet(data);
+  worksheet['!cols'] = [
+    { wch: 6 },  // STT
+    { wch: 45 }, // Tên tiêu chí
+    { wch: 18 }, // Loại điểm
+    { wch: 12 }, // Số điểm
+    { wch: 25 }, // Lĩnh vực
+    { wch: 20 }  // Đối tượng
+  ];
+
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Mau_Tieu_Chi');
+
+  XLSX.writeFile(workbook, 'Mau_Nhap_Tieu_Chi_Thi_Dua.xlsx');
+}
+
+/**
+ * Export current emulation criteria to styled Excel file
+ */
+export function exportCriteriaToExcel(criteria: EmulationCriterion[], className: string): void {
+  const data: any[][] = [
+    [`DANH MỤC TIÊU CHÍ THI ĐUA - LỚP ${className.toUpperCase()}`],
+    [`Ngày kết xuất: ${new Date().toLocaleDateString('vi-VN')} · Tổng số: ${criteria.length} tiêu chí`],
+    [],
+    ['STT', 'Tên tiêu chí thi đua', 'Loại điểm', 'Mức điểm', 'Lĩnh vực', 'Đối tượng áp dụng']
+  ];
+
+  criteria.forEach((crit, idx) => {
+    data.push([
+      idx + 1,
+      crit.name,
+      crit.type === 'plus' ? 'Cộng điểm (+)' : 'Trừ điểm (-)',
+      crit.type === 'plus' ? `+${crit.points}` : `-${crit.points}`,
+      crit.category,
+      crit.targetType === 'individual' ? 'Cá nhân' : crit.targetType === 'team' ? 'Tổ' : 'Cả lớp'
+    ]);
+  });
+
+  const worksheet = XLSX.utils.aoa_to_sheet(data);
+  worksheet['!cols'] = [
+    { wch: 6 },
+    { wch: 45 },
+    { wch: 18 },
+    { wch: 14 },
+    { wch: 25 },
+    { wch: 20 }
+  ];
+
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Danh_Muc_Tieu_Chi');
+
+  const fileName = `Danh_muc_tieu_chi_thi_dua_${className.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+  XLSX.writeFile(workbook, fileName);
+}
+
 
