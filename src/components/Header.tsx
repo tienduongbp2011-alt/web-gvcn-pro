@@ -202,7 +202,7 @@ export const Header: React.FC<HeaderProps> = ({
                   {currentLeader && <span className="text-amber-800 font-semibold">({currentLeader.fullName})</span>}
                 </div>
                 <div className="text-[10px] text-amber-700 font-medium flex items-center gap-1">
-                  <Lock className="w-2.5 h-2.5" /> Chỉ chấm thi đua lớp
+                  <Lock className="w-2.5 h-2.5" /> Chỉ chấm điểm tổ được phân công trực
                 </div>
               </div>
 

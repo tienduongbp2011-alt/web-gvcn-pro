@@ -132,7 +132,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="text-xs font-semibold uppercase tracking-wider bg-white/20 px-2.5 py-0.5 rounded-md text-white/95">
-              Hệ thống quản lý lớp học THPT
+              Phần mềm QLCN lớp
             </span>
           </div>
           <h2 className="text-2xl font-bold tracking-tight">

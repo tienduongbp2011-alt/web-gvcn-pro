@@ -135,7 +135,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
         entered.toLowerCase() === 'gvcn123';
 
       if (!isGvcnValid) {
-        setErrorMessage('Mật khẩu Giáo viên không chính xác! (Mặc định: 123456 hoặc gvcn123)');
+        setErrorMessage('Mật khẩu Giáo viên không chính xác. Vui lòng kiểm tra lại!');
         setIsShaking(true);
         setTimeout(() => setIsShaking(false), 500);
         sound.playError();
@@ -158,7 +158,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
         entered.toLowerCase() === teamSpecific;
 
       if (!isTeamValid) {
-        setErrorMessage(`Mật khẩu Tổ trưởng không chính xác! (Mặc định: 123456 hoặc ${teamSpecific})`);
+        setErrorMessage('Mật khẩu Tổ trưởng không chính xác. Vui lòng kiểm tra lại!');
         setIsShaking(true);
         setTimeout(() => setIsShaking(false), 500);
         sound.playError();
@@ -170,17 +170,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
       onLoginSuccess(roleKey);
       if (onCloseModal) onCloseModal();
     }
-  };
-
-  // Quick fill default password for ease of testing
-  const handleUseDefaultPassword = () => {
-    sound.playClick();
-    if (selectedRoleType === 'gvcn') {
-      setPasswordInput('123456');
-    } else {
-      setPasswordInput(`to${selectedTeam}`);
-    }
-    setErrorMessage(null);
   };
 
   // Save new password
@@ -240,10 +229,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                 </span>
               </div>
               <h1 className="text-lg sm:text-xl font-extrabold text-white tracking-tight mt-1 truncate">
-                Lớp {currentClass.name} – {currentClass.grade}
+                Phần mềm QLCN lớp
               </h1>
               <p className="text-xs text-teal-100/90 truncate">
-                Giáo viên chủ nhiệm: <strong className="text-white">{currentClass.teacherName || 'Chưa cập nhật'}</strong>
+                Lớp: <strong className="text-white">{currentClass.name}</strong> {currentClass.grade ? `(${currentClass.grade})` : ''} · GVCN: <strong className="text-white">{currentClass.teacherName || 'Chưa cập nhật'}</strong>
               </p>
             </div>
           </div>
@@ -447,8 +436,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                   type={showPassword ? 'text' : 'password'}
                   placeholder={
                     selectedRoleType === 'gvcn' 
-                      ? 'Nhập mật khẩu Giáo viên (Mặc định: 123456 hoặc gvcn123)' 
-                      : `Nhập mật khẩu Tổ trưởng (Mặc định: 123456 hoặc to${selectedTeam})`
+                      ? 'Nhập mật khẩu Giáo viên...' 
+                      : `Nhập mật khẩu Tổ trưởng Tổ ${selectedTeam}...`
                   }
                   value={passwordInput}
                   onChange={(e) => {
@@ -466,26 +455,11 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                 />
               </div>
 
-              {/* Password Helper Hints & Actions */}
+              {/* Password Helper Actions */}
               <div className="flex flex-wrap items-center justify-between text-xs text-slate-500 mt-2 gap-2">
-                <div className="flex items-center gap-1.5">
-                  <Info className="w-3.5 h-3.5 text-slate-400" />
-                  <span>
-                    Gợi ý mật khẩu mặc định:{' '}
-                    <strong className="text-slate-800 font-mono">123456</strong>
-                    {selectedRoleType === 'gvcn' ? (
-                      <> hoặc <strong className="text-slate-800 font-mono">gvcn123</strong></>
-                    ) : (
-                      <> hoặc <strong className="text-slate-800 font-mono">to{selectedTeam}</strong></>
-                    )}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleUseDefaultPassword}
-                    className="ml-1 text-[11px] text-teal-700 hover:text-teal-900 font-bold underline bg-teal-50 px-1.5 py-0.5 rounded"
-                  >
-                    Điền nhanh
-                  </button>
+                <div className="flex items-center gap-1.5 text-slate-400">
+                  <Lock className="w-3.5 h-3.5 text-slate-400" />
+                  <span className="text-[11px] font-medium">Bảo mật hệ thống Class Pro</span>
                 </div>
 
                 <div className="flex items-center gap-2">

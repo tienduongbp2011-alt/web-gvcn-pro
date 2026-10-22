@@ -176,6 +176,12 @@ export const EmulationView: React.FC<EmulationViewProps> = ({
     return null;
   }, [evaluatorRole]);
 
+  // Active assigned team for current evaluator (Tổ được phân công trực)
+  const assignedTeamForCurrentEvaluator = useMemo(() => {
+    if (evaluatorTeamNumber === null) return null;
+    return getAssignedTargetTeam(evaluatorTeamNumber, selectedWeek);
+  }, [evaluatorTeamNumber, selectedWeek, crossEvalMode, customPlan]);
+
   // Evaluator Display Label
   const evaluatorDisplayLabel = useMemo(() => {
     if (evaluatorRole === 'gvcn') return 'Giáo viên chủ nhiệm (Cô Mai Hoa)';
@@ -189,32 +195,33 @@ export const EmulationView: React.FC<EmulationViewProps> = ({
 
   // Currently selected target team in Cross Evaluation workspace (Tổ được chấm)
   const [crossTargetTeam, setCrossTargetTeam] = useState<number>(() => {
-    return 2; // Default
+    if (evaluatorTeamNumber !== null) {
+      return getAssignedTargetTeam(evaluatorTeamNumber, currentSchoolWeek);
+    }
+    return 2;
   });
 
-  // Automatically update crossTargetTeam when evaluator changes or week changes
+  // Automatically update and strictly lock crossTargetTeam to assigned team for team leaders
   useEffect(() => {
-    if (evaluatorTeamNumber !== null) {
-      const assigned = getAssignedTargetTeam(evaluatorTeamNumber, selectedWeek);
-      setCrossTargetTeam(assigned);
+    if (evaluatorTeamNumber !== null && assignedTeamForCurrentEvaluator !== null) {
+      setCrossTargetTeam(assignedTeamForCurrentEvaluator);
     }
-  }, [evaluatorRole, selectedWeek, crossEvalMode, customPlan]);
+  }, [evaluatorRole, evaluatorTeamNumber, assignedTeamForCurrentEvaluator]);
+
+  // Guard active tab: Team leaders are restricted to cross_eval, rankings, and history
+  useEffect(() => {
+    if (evaluatorTeamNumber !== null && !['cross_eval', 'rankings', 'history'].includes(activeTab)) {
+      setActiveTab('cross_eval');
+    }
+  }, [evaluatorTeamNumber, activeTab]);
 
   // Eligible target teams for evaluation (cannot evaluate own team)
   const eligibleTargetTeams = useMemo(() => {
     if (evaluatorTeamNumber === null) {
       return [1, 2, 3, 4];
     }
-    return [1, 2, 3, 4].filter(t => t !== evaluatorTeamNumber);
-  }, [evaluatorTeamNumber]);
-
-  // Ensure crossTargetTeam is valid whenever evaluator changes
-  useEffect(() => {
-    if (evaluatorTeamNumber !== null && crossTargetTeam === evaluatorTeamNumber) {
-      const fallback = eligibleTargetTeams[0] || 1;
-      setCrossTargetTeam(fallback);
-    }
-  }, [evaluatorTeamNumber, crossTargetTeam, eligibleTargetTeams]);
+    return [assignedTeamForCurrentEvaluator || 2];
+  }, [evaluatorTeamNumber, assignedTeamForCurrentEvaluator]);
 
   // Students belonging to the currently evaluated team (TOÀN BỘ THÀNH VIÊN CỦA TỔ ĐƯỢC CHẤM)
   const targetTeamMembers = useMemo(() => {
@@ -284,6 +291,11 @@ export const EmulationView: React.FC<EmulationViewProps> = ({
       return;
     }
 
+    if (evaluatorTeamNumber !== null && assignedTeamForCurrentEvaluator !== null && student.team !== assignedTeamForCurrentEvaluator) {
+      alert(`Chức năng đã khóa: Bạn là Tổ trưởng Tổ ${evaluatorTeamNumber}, chỉ được phép chấm điểm cho học sinh thuộc Tổ ${assignedTeamForCurrentEvaluator} được phân công trực!`);
+      return;
+    }
+
     const crit = customCrit || criteria.find(c => c.id === crossCriterionId);
     if (!crit) return;
 
@@ -322,6 +334,11 @@ export const EmulationView: React.FC<EmulationViewProps> = ({
     if (isLocked) return;
     if (selectedMemberIds.length === 0) {
       alert('Vui lòng chọn ít nhất một học sinh trong tổ để chấm điểm!');
+      return;
+    }
+
+    if (evaluatorTeamNumber !== null && assignedTeamForCurrentEvaluator !== null && crossTargetTeam !== assignedTeamForCurrentEvaluator) {
+      alert(`Chức năng đã khóa: Bạn chỉ được phân công trực và chấm điểm cho Tổ ${assignedTeamForCurrentEvaluator}!`);
       return;
     }
 
@@ -366,6 +383,11 @@ export const EmulationView: React.FC<EmulationViewProps> = ({
 
     if (evaluatorTeamNumber !== null && crossTargetTeam === evaluatorTeamNumber) {
       alert(`Quy định chấm thi đua chéo: Tổ trưởng Tổ ${evaluatorTeamNumber} không được tự chấm cho Tổ của mình!`);
+      return;
+    }
+
+    if (evaluatorTeamNumber !== null && assignedTeamForCurrentEvaluator !== null && crossTargetTeam !== assignedTeamForCurrentEvaluator) {
+      alert(`Chức năng đã khóa: Bạn chỉ được phân công trực và chấm điểm cho Tổ ${assignedTeamForCurrentEvaluator}!`);
       return;
     }
 
@@ -780,11 +802,6 @@ export const EmulationView: React.FC<EmulationViewProps> = ({
     return `Năm học ${currentClass.schoolYear}`;
   }, [rankingPeriod, selectedWeek, selectedMonth, selectedSemester, currentClass.schoolYear]);
 
-  // Active assigned team label
-  const assignedTeamForCurrentEvaluator = useMemo(() => {
-    if (evaluatorTeamNumber === null) return null;
-    return getAssignedTargetTeam(evaluatorTeamNumber, selectedWeek);
-  }, [evaluatorTeamNumber, selectedWeek, crossEvalMode, customPlan]);
 
   return (
     <div className="space-y-6">
@@ -834,33 +851,35 @@ export const EmulationView: React.FC<EmulationViewProps> = ({
             className="px-3.5 py-2 rounded-xl text-xs font-bold border border-teal-200 bg-teal-50 text-teal-800 hover:bg-teal-100 transition-all flex items-center gap-1.5 shadow-xs"
           >
             <Layers className="w-4 h-4 text-teal-600" />
-            Phương Án Chấm Chéo
+            {evaluatorTeamNumber !== null ? 'Lịch Phân Công Trực' : 'Phương Án Chấm Chéo'}
           </button>
 
-          <button
-            type="button"
-            onClick={() => {
-              setIsLocked(!isLocked);
-              sound.playClick();
-            }}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
-              isLocked
-                ? 'bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100'
-                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-            }`}
-          >
-            {isLocked ? (
-              <>
-                <Lock className="w-3.5 h-3.5 text-rose-500" />
-                Đang khóa sổ thi đua
-              </>
-            ) : (
-              <>
-                <Unlock className="w-3.5 h-3.5 text-slate-500" />
-                Khóa sổ thi đua
-              </>
-            )}
-          </button>
+          {evaluatorTeamNumber === null && (
+            <button
+              type="button"
+              onClick={() => {
+                setIsLocked(!isLocked);
+                sound.playClick();
+              }}
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                isLocked
+                  ? 'bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              }`}
+            >
+              {isLocked ? (
+                <>
+                  <Lock className="w-3.5 h-3.5 text-rose-500" />
+                  Đang khóa sổ thi đua
+                </>
+              ) : (
+                <>
+                  <Unlock className="w-3.5 h-3.5 text-slate-500" />
+                  Khóa sổ thi đua
+                </>
+              )}
+            </button>
+          )}
         </div>
       </div>
 
@@ -882,7 +901,7 @@ export const EmulationView: React.FC<EmulationViewProps> = ({
               </div>
               <p className="text-[11px] text-teal-100/90 mt-0.5">
                 {evaluatorTeamNumber 
-                  ? `⭐ Bạn là Tổ trưởng Tổ ${evaluatorTeamNumber}. Theo quy định chấm chéo, bạn được phân công chấm Tổ ${assignedTeamForCurrentEvaluator} (không được chấm thành viên tổ mình).`
+                  ? `🔒 Bạn là Tổ trưởng Tổ ${evaluatorTeamNumber}. Quyền hạn đã khóa: Bạn chỉ được phân công trực và thao tác chấm điểm cho danh sách thành viên TỔ ${assignedTeamForCurrentEvaluator} (Tuần ${selectedWeek}). Các chức năng khác đã được khóa theo quy định.`
                   : '⭐ Chế độ GVCN: Toàn quyền chấm thi đua cá nhân, tổ và cả lớp; cấu hình phương án chấm chéo.'
                 }
               </p>
@@ -957,39 +976,45 @@ export const EmulationView: React.FC<EmulationViewProps> = ({
           }`}
         >
           <ArrowLeftRight className="w-3.5 h-3.5 text-amber-300" />
-          Chấm chéo các tổ (Tổ trưởng)
+          {evaluatorTeamNumber !== null 
+            ? `Chấm điểm Tổ ${assignedTeamForCurrentEvaluator} (Phân công trực)`
+            : 'Chấm chéo các tổ (Tổ trưởng)'}
         </button>
 
-        <button
-          type="button"
-          onClick={() => {
-            setActiveTab('record');
-            sound.playClick();
-          }}
-          className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
-            activeTab === 'record'
-              ? 'bg-white text-slate-900 shadow-xs'
-              : 'text-slate-600 hover:text-slate-900'
-          }`}
-        >
-          Ghi nhận tự do & Hệ số
-        </button>
+        {evaluatorTeamNumber === null && (
+          <>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('record');
+                sound.playClick();
+              }}
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
+                activeTab === 'record'
+                  ? 'bg-white text-slate-900 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Ghi nhận tự do & Hệ số
+            </button>
 
-        <button
-          type="button"
-          onClick={() => {
-            setActiveTab('quick_tap');
-            sound.playClick();
-          }}
-          className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
-            activeTab === 'quick_tap'
-              ? 'bg-white text-slate-900 shadow-xs text-teal-700'
-              : 'text-slate-600 hover:text-slate-900'
-          }`}
-        >
-          <Zap className="w-3.5 h-3.5 text-amber-500" />
-          Chấm nhanh 1x, 2x...
-        </button>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('quick_tap');
+                sound.playClick();
+              }}
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                activeTab === 'quick_tap'
+                  ? 'bg-white text-slate-900 shadow-xs text-teal-700'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Zap className="w-3.5 h-3.5 text-amber-500" />
+              Chấm nhanh 1x, 2x...
+            </button>
+          </>
+        )}
 
         <button
           type="button"
@@ -1006,21 +1031,23 @@ export const EmulationView: React.FC<EmulationViewProps> = ({
           Xếp hạng (Tuần / Tháng / Kỳ / Năm)
         </button>
 
-        <button
-          type="button"
-          onClick={() => {
-            setActiveTab('rewards');
-            sound.playClick();
-          }}
-          className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
-            activeTab === 'rewards'
-              ? 'bg-white text-slate-900 shadow-xs text-amber-700'
-              : 'text-slate-600 hover:text-slate-900'
-          }`}
-        >
-          <Award className="w-3.5 h-3.5 text-amber-500" />
-          Khen thưởng & Giấy khen
-        </button>
+        {evaluatorTeamNumber === null && (
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('rewards');
+              sound.playClick();
+            }}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+              activeTab === 'rewards'
+                ? 'bg-white text-slate-900 shadow-xs text-amber-700'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Award className="w-3.5 h-3.5 text-amber-500" />
+            Khen thưởng & Giấy khen
+          </button>
+        )}
 
         <button
           type="button"
@@ -1034,23 +1061,27 @@ export const EmulationView: React.FC<EmulationViewProps> = ({
               : 'text-slate-600 hover:text-slate-900'
           }`}
         >
-          Lịch sử ({classLogs.length})
+          {evaluatorTeamNumber !== null 
+            ? `Lịch sử Tổ ${assignedTeamForCurrentEvaluator}` 
+            : `Lịch sử (${classLogs.length})`}
         </button>
 
-        <button
-          type="button"
-          onClick={() => {
-            setActiveTab('criteria');
-            sound.playClick();
-          }}
-          className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
-            activeTab === 'criteria'
-              ? 'bg-white text-slate-900 shadow-xs'
-              : 'text-slate-600 hover:text-slate-900'
-          }`}
-        >
-          Tiêu chí ({criteria.length})
-        </button>
+        {evaluatorTeamNumber === null && (
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('criteria');
+              sound.playClick();
+            }}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
+              activeTab === 'criteria'
+                ? 'bg-white text-slate-900 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Tiêu chí ({criteria.length})
+          </button>
+        )}
       </div>
 
       {/* Success Alert */}
@@ -1096,15 +1127,43 @@ export const EmulationView: React.FC<EmulationViewProps> = ({
 
             {/* Target Team Selection Grid */}
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wider">
-                1. Chọn Tổ Được Chấm Điểm:
-              </label>
+              {/* Alert banner for team leaders */}
+              {evaluatorTeamNumber !== null && (
+                <div className="mb-3.5 p-3.5 bg-amber-50 border-2 border-amber-300 rounded-2xl flex items-start gap-3 shadow-xs animate-in fade-in">
+                  <div className="w-8 h-8 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center shrink-0 shadow-xs font-black">
+                    <Lock className="w-4 h-4" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-extrabold text-amber-950 text-xs sm:text-sm flex items-center gap-2 flex-wrap">
+                      <span>PHÂN CÔNG TRỰC: TỔ TRƯỞNG TỔ {evaluatorTeamNumber} ➔ CHẤM ĐIỂM TỔ {assignedTeamForCurrentEvaluator}</span>
+                      <span className="bg-amber-200 text-amber-950 text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
+                        Chức năng đã khóa
+                      </span>
+                    </div>
+                    <p className="text-[11px] sm:text-xs text-amber-900 mt-1 leading-relaxed">
+                      Bạn chỉ được phép thao tác chấm điểm (cộng/trừ điểm) cho các thành viên thuộc <strong>Tổ {assignedTeamForCurrentEvaluator}</strong> theo lịch phân công trực tuần {selectedWeek}. Danh sách các tổ khác và các mục quản lý riêng tư của lớp đã được khóa an toàn.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                  1. {evaluatorTeamNumber !== null ? `Tổ được phân công trực (Tổ ${assignedTeamForCurrentEvaluator}):` : 'Chọn Tổ Được Chấm Điểm:'}
+                </label>
+                {evaluatorTeamNumber !== null && (
+                  <span className="text-[11px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-md flex items-center gap-1">
+                    <Lock className="w-3 h-3" /> Cố định theo phân công trực
+                  </span>
+                )}
+              </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 {[1, 2, 3, 4].map(teamNum => {
                   const isMyTeam = evaluatorTeamNumber !== null && evaluatorTeamNumber === teamNum;
                   const isAssigned = evaluatorTeamNumber !== null && assignedTeamForCurrentEvaluator === teamNum;
                   const isSelected = crossTargetTeam === teamNum;
+                  const isLockedForLeader = evaluatorTeamNumber !== null && !isAssigned;
                   const leader = teamLeaders[teamNum];
                   const memberCount = classStudents.filter(s => s.team === teamNum).length;
 
@@ -1112,15 +1171,16 @@ export const EmulationView: React.FC<EmulationViewProps> = ({
                     <button
                       key={teamNum}
                       type="button"
-                      disabled={isMyTeam}
+                      disabled={isLockedForLeader || isMyTeam}
                       onClick={() => {
+                        if (isLockedForLeader || isMyTeam) return;
                         setCrossTargetTeam(teamNum);
                         setSelectedMemberIds([]);
                         sound.playClick();
                       }}
                       className={`relative p-4 rounded-2xl border text-left transition-all ${
-                        isMyTeam
-                          ? 'bg-slate-50 border-slate-200 opacity-50 cursor-not-allowed'
+                        isLockedForLeader
+                          ? 'bg-slate-100/70 border-slate-200 opacity-60 cursor-not-allowed text-slate-400'
                           : isSelected
                           ? 'bg-teal-50/90 border-teal-500 ring-2 ring-teal-400 shadow-sm'
                           : 'bg-white border-slate-200 hover:border-teal-300 hover:shadow-xs'
@@ -1131,7 +1191,17 @@ export const EmulationView: React.FC<EmulationViewProps> = ({
                         <div className="absolute top-2.5 right-2.5">
                           <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-400 text-slate-900 flex items-center gap-1 shadow-xs animate-pulse">
                             <Sparkles className="w-2.5 h-2.5" />
-                            Phân công
+                            Phân công trực
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Locked badge for unassigned teams */}
+                      {isLockedForLeader && (
+                        <div className="absolute top-2.5 right-2.5">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-200 text-slate-600 flex items-center gap-1">
+                            <Lock className="w-2.5 h-2.5" />
+                            Đã khóa
                           </span>
                         </div>
                       )}
@@ -1162,11 +1232,15 @@ export const EmulationView: React.FC<EmulationViewProps> = ({
                       <div className="pt-2 border-t border-slate-100 text-[11px] flex items-center justify-between">
                         {isMyTeam ? (
                           <span className="text-rose-600 font-semibold flex items-center gap-1">
-                            <X className="w-3 h-3" /> Tổ của bạn (không tự chấm)
+                            <Lock className="w-3 h-3" /> Tổ của bạn (không tự chấm)
+                          </span>
+                        ) : isLockedForLeader ? (
+                          <span className="text-slate-500 font-semibold flex items-center gap-1">
+                            <Lock className="w-3 h-3" /> Đã khóa (Không thuộc phân công)
                           </span>
                         ) : isSelected ? (
                           <span className="text-teal-700 font-bold flex items-center gap-1">
-                            <Check className="w-3.5 h-3.5" /> Đang chọn chấm
+                            <Check className="w-3.5 h-3.5" /> Đang chấm điểm
                           </span>
                         ) : (
                           <span className="text-slate-400 hover:text-slate-600">
@@ -1565,19 +1639,21 @@ export const EmulationView: React.FC<EmulationViewProps> = ({
                         </div>
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (confirm(`Bạn có chắc muốn xóa lượt chấm này của ${log.targetName}?`)) {
-                            onDeleteLog(log.id);
-                            sound.playClick();
-                          }
-                        }}
-                        className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg shrink-0"
-                        title="Xóa lượt ghi này"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      {evaluatorTeamNumber === null && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (confirm(`Bạn có chắc muốn xóa lượt chấm này của ${log.targetName}?`)) {
+                              onDeleteLog(log.id);
+                              sound.playClick();
+                            }
+                          }}
+                          className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg shrink-0"
+                          title="Xóa lượt ghi này"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -2307,74 +2383,105 @@ export const EmulationView: React.FC<EmulationViewProps> = ({
       {/* ============================================================= */}
       {/* TAB 5: HISTORY (LỊCH SỬ CHẤM THI ĐUA) */}
       {/* ============================================================= */}
-      {activeTab === 'history' && (
-        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-            <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-              <Clock className="w-4 h-4 text-teal-600" />
-              Toàn bộ Lịch sử ghi nhận điểm thi đua ({classLogs.length} sự kiện)
-            </h3>
-            <span className="text-xs text-slate-400">
-              Sắp xếp theo thời gian mới nhất
-            </span>
-          </div>
+      {activeTab === 'history' && (() => {
+        const historyLogs = evaluatorTeamNumber !== null
+          ? classLogs.filter(l => {
+              if (l.targetType === 'team' && l.targetId === String(assignedTeamForCurrentEvaluator)) return true;
+              if (l.targetType === 'individual' && targetTeamMembers.some(m => m.id === l.targetId)) return true;
+              if (l.evaluatorRole?.includes(`Tổ ${evaluatorTeamNumber}`)) return true;
+              return false;
+            })
+          : classLogs;
 
-          <div className="border border-slate-200 rounded-xl overflow-hidden text-xs">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold">
-                    <th className="py-2.5 px-3">Thời gian</th>
-                    <th className="py-2.5 px-3">Đối tượng</th>
-                    <th className="py-2.5 px-3">Tiêu chí thi đua</th>
-                    <th className="py-2.5 px-3 text-center">Hệ số</th>
-                    <th className="py-2.5 px-3 text-right">Điểm</th>
-                    <th className="py-2.5 px-3">Người ghi nhận</th>
-                    <th className="py-2.5 px-3">Ghi chú</th>
-                    <th className="py-2.5 px-3 text-center">Thao tác</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {classLogs.slice().reverse().map(l => (
-                    <tr key={l.id} className="hover:bg-slate-50">
-                      <td className="py-2.5 px-3 font-mono text-slate-500 whitespace-nowrap">{l.date}</td>
-                      <td className="py-2.5 px-3 font-bold text-slate-900">{l.targetName}</td>
-                      <td className="py-2.5 px-3 text-slate-700">{l.criterionName}</td>
-                      <td className="py-2.5 px-3 text-center">
-                        <span className="px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 text-[10px] font-bold">
-                          {l.multiplier || 1}x
-                        </span>
-                      </td>
-                      <td className={`py-2.5 px-3 font-bold text-right tabular-nums ${
-                        l.points > 0 ? 'text-emerald-700' : 'text-rose-600'
-                      }`}>
-                        {l.points > 0 ? `+${l.points}` : l.points}đ
-                      </td>
-                      <td className="py-2.5 px-3 text-slate-600 font-medium">{l.evaluatorRole || 'GVCN'}</td>
-                      <td className="py-2.5 px-3 text-slate-500 italic">{l.note || '-'}</td>
-                      <td className="py-2.5 px-3 text-center">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (confirm(`Bạn có chắc muốn xóa bản ghi thi đua này của "${l.targetName}"?`)) {
-                              onDeleteLog(l.id);
-                              sound.playClick();
-                            }
-                          }}
-                          className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                          title="Xóa bản ghi này"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </td>
+        return (
+          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <Clock className="w-4 h-4 text-teal-600" />
+                {evaluatorTeamNumber !== null 
+                  ? `Nhật ký chấm thi đua Tổ ${assignedTeamForCurrentEvaluator} (${historyLogs.length} lượt ghi)`
+                  : `Toàn bộ Lịch sử ghi nhận điểm thi đua (${classLogs.length} sự kiện)`}
+              </h3>
+              <span className="text-xs text-slate-400">
+                {evaluatorTeamNumber !== null 
+                  ? `Phân công trực: Tổ trưởng Tổ ${evaluatorTeamNumber}` 
+                  : 'Sắp xếp theo thời gian mới nhất'}
+              </span>
+            </div>
+
+            <div className="border border-slate-200 rounded-xl overflow-hidden text-xs">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold">
+                      <th className="py-2.5 px-3">Thời gian</th>
+                      <th className="py-2.5 px-3">Đối tượng</th>
+                      <th className="py-2.5 px-3">Tiêu chí thi đua</th>
+                      <th className="py-2.5 px-3 text-center">Hệ số</th>
+                      <th className="py-2.5 px-3 text-right">Điểm</th>
+                      <th className="py-2.5 px-3">Người ghi nhận</th>
+                      <th className="py-2.5 px-3">Ghi chú</th>
+                      <th className="py-2.5 px-3 text-center">
+                        {evaluatorTeamNumber !== null ? 'Trạng thái' : 'Thao tác'}
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {historyLogs.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="py-6 text-center text-slate-400">
+                          Chưa có lượt chấm thi đua nào được ghi nhận.
+                        </td>
+                      </tr>
+                    ) : (
+                      historyLogs.slice().reverse().map(l => (
+                        <tr key={l.id} className="hover:bg-slate-50">
+                          <td className="py-2.5 px-3 font-mono text-slate-500 whitespace-nowrap">{l.date}</td>
+                          <td className="py-2.5 px-3 font-bold text-slate-900">{l.targetName}</td>
+                          <td className="py-2.5 px-3 text-slate-700">{l.criterionName}</td>
+                          <td className="py-2.5 px-3 text-center">
+                            <span className="px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 text-[10px] font-bold">
+                              {l.multiplier || 1}x
+                            </span>
+                          </td>
+                          <td className={`py-2.5 px-3 font-bold text-right tabular-nums ${
+                            l.points > 0 ? 'text-emerald-700' : 'text-rose-600'
+                          }`}>
+                            {l.points > 0 ? `+${l.points}` : l.points}đ
+                          </td>
+                          <td className="py-2.5 px-3 text-slate-600 font-medium">{l.evaluatorRole || 'GVCN'}</td>
+                          <td className="py-2.5 px-3 text-slate-500 italic">{l.note || '-'}</td>
+                          <td className="py-2.5 px-3 text-center">
+                            {evaluatorTeamNumber === null ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (confirm(`Bạn có chắc muốn xóa bản ghi thi đua này của "${l.targetName}"?`)) {
+                                    onDeleteLog(l.id);
+                                    sound.playClick();
+                                  }
+                                }}
+                                className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                                title="Xóa bản ghi này"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            ) : (
+                              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                                Đã ghi
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ============================================================= */}
       {/* TAB 6: CRITERIA MANAGEMENT (CẤU HÌNH TIÊU CHÍ) */}
@@ -2516,66 +2623,75 @@ export const EmulationView: React.FC<EmulationViewProps> = ({
             </div>
 
             {/* Plan Mode Selection */}
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-2">
-                Chọn chế độ phân công chấm chéo:
-              </label>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
-                <button
-                  type="button"
-                  onClick={() => setCrossEvalMode('weekly_rotation')}
-                  className={`p-3 rounded-xl border text-left font-bold transition-all ${
-                    crossEvalMode === 'weekly_rotation'
-                      ? 'bg-teal-50 border-teal-500 text-teal-900 ring-1 ring-teal-400 shadow-xs'
-                      : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <span>Xoay vòng theo tuần</span>
-                    {crossEvalMode === 'weekly_rotation' && <Check className="w-3.5 h-3.5 text-teal-600" />}
-                  </div>
-                  <p className="text-[11px] font-normal text-slate-500">
-                    Mỗi tuần tự động luân phiên đổi tổ chấm theo chu kỳ 3 tuần để công bằng, khách quan.
-                  </p>
-                </button>
+            {evaluatorTeamNumber === null ? (
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-2">
+                  Chọn chế độ phân công chấm chéo:
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setCrossEvalMode('weekly_rotation')}
+                    className={`p-3 rounded-xl border text-left font-bold transition-all ${
+                      crossEvalMode === 'weekly_rotation'
+                        ? 'bg-teal-50 border-teal-500 text-teal-900 ring-1 ring-teal-400 shadow-xs'
+                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span>Xoay vòng theo tuần</span>
+                      {crossEvalMode === 'weekly_rotation' && <Check className="w-3.5 h-3.5 text-teal-600" />}
+                    </div>
+                    <p className="text-[11px] font-normal text-slate-500">
+                      Mỗi tuần tự động luân phiên đổi tổ chấm theo chu kỳ 3 tuần để công bằng, khách quan.
+                    </p>
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={() => setCrossEvalMode('fixed')}
-                  className={`p-3 rounded-xl border text-left font-bold transition-all ${
-                    crossEvalMode === 'fixed'
-                      ? 'bg-teal-50 border-teal-500 text-teal-900 ring-1 ring-teal-400 shadow-xs'
-                      : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <span>Phân công cố định</span>
-                    {crossEvalMode === 'fixed' && <Check className="w-3.5 h-3.5 text-teal-600" />}
-                  </div>
-                  <p className="text-[11px] font-normal text-slate-500">
-                    Cố định xuyên suốt: Tổ 1 ➔ Tổ 2, Tổ 2 ➔ Tổ 3, Tổ 3 ➔ Tổ 4, Tổ 4 ➔ Tổ 1.
-                  </p>
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => setCrossEvalMode('fixed')}
+                    className={`p-3 rounded-xl border text-left font-bold transition-all ${
+                      crossEvalMode === 'fixed'
+                        ? 'bg-teal-50 border-teal-500 text-teal-900 ring-1 ring-teal-400 shadow-xs'
+                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span>Phân công cố định</span>
+                      {crossEvalMode === 'fixed' && <Check className="w-3.5 h-3.5 text-teal-600" />}
+                    </div>
+                    <p className="text-[11px] font-normal text-slate-500">
+                      Cố định xuyên suốt: Tổ 1 ➔ Tổ 2, Tổ 2 ➔ Tổ 3, Tổ 3 ➔ Tổ 4, Tổ 4 ➔ Tổ 1.
+                    </p>
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={() => setCrossEvalMode('custom')}
-                  className={`p-3 rounded-xl border text-left font-bold transition-all ${
-                    crossEvalMode === 'custom'
-                      ? 'bg-teal-50 border-teal-500 text-teal-900 ring-1 ring-teal-400 shadow-xs'
-                      : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <span>Tùy chỉnh phân công</span>
-                    {crossEvalMode === 'custom' && <Check className="w-3.5 h-3.5 text-teal-600" />}
-                  </div>
-                  <p className="text-[11px] font-normal text-slate-500">
-                    GVCN tự do cấu hình cặp tổ nào chấm chéo tổ nào tùy theo tình hình thực tế lớp học.
-                  </p>
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => setCrossEvalMode('custom')}
+                    className={`p-3 rounded-xl border text-left font-bold transition-all ${
+                      crossEvalMode === 'custom'
+                        ? 'bg-teal-50 border-teal-500 text-teal-900 ring-1 ring-teal-400 shadow-xs'
+                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span>Tùy chỉnh phân công</span>
+                      {crossEvalMode === 'custom' && <Check className="w-3.5 h-3.5 text-teal-600" />}
+                    </div>
+                    <p className="text-[11px] font-normal text-slate-500">
+                      GVCN tự do cấu hình cặp tổ nào chấm chéo tổ nào tùy theo tình hình thực tế lớp học.
+                    </p>
+                  </button>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="p-3.5 bg-teal-50 border border-teal-200 rounded-xl text-xs text-teal-900 flex items-center gap-2.5">
+                <Lock className="w-4 h-4 text-teal-700 shrink-0" />
+                <span>
+                  Lịch phân công trực do Giáo viên chủ nhiệm ban hành. Bạn là Tổ trưởng Tổ <strong>{evaluatorTeamNumber}</strong>, được phân công trực chấm điểm cho <strong>Tổ {assignedTeamForCurrentEvaluator}</strong>.
+                </span>
+              </div>
+            )}
 
             {/* Visual Scheme Flow Chart */}
             <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
@@ -2614,7 +2730,7 @@ export const EmulationView: React.FC<EmulationViewProps> = ({
                         <ArrowRight className="w-4 h-4" />
                       </div>
 
-                      {crossEvalMode === 'custom' ? (
+                      {crossEvalMode === 'custom' && evaluatorTeamNumber === null ? (
                         <select
                           value={customPlan[sTeam] || 2}
                           onChange={(e) => {

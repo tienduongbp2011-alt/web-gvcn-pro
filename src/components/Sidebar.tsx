@@ -123,7 +123,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   CLASS PRO
                 </span>
                 <span className="text-[11px] font-bold text-teal-700 block tracking-wide">
-                  {isTeamLeader ? `TỔ TRƯỞNG TỔ ${teamNum}` : 'TRỢ LÝ CHỦ NHIỆM'}
+                  {isTeamLeader ? `TỔ TRƯỞNG TỔ ${teamNum}` : 'PHẦN MỀM QLCN LỚP'}
                 </span>
               </div>
             )}
@@ -147,7 +147,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               Tài khoản Tổ trưởng {teamNum}
             </div>
             <p className="text-[11px] text-amber-800">
-              Chỉ được phép chấm thi đua chéo giữa các tổ. Các tính năng quản lý khác của lớp đã bị ẩn theo quy định.
+              Đã khóa chức năng: Bạn chỉ được thao tác chấm điểm với danh sách tổ mình được phân công trực.
             </p>
           </div>
         )}
